@@ -1,0 +1,492 @@
+/* ==========================================================================
+   TRAFFICINTEL AI — Light Industrial Operations Design System Tokens
+   Municipal & Regional Traffic Operations Center (TOC) Visual System
+   Palette: Warm White #F8FAFC / #FFFFFF, Deep Slate, Electric Blue, Teal, Indigo.
+   Aesthetic: Light, Calm, Technical, Human-Designed, Modern Industrial.
+   ========================================================================== */
+
+:root {
+  /* Surface & Background Hierarchy (Light Industrial) */
+  --its-bg-app: #f8fafc;
+  --its-bg-subsurface: #f1f5f9;
+  --its-bg-surface: #ffffff;
+  --its-bg-card: #ffffff;
+  --its-bg-elevated: #ffffff;
+  --its-bg-hover: #f1f5f9;
+  --its-bg-active: #e2e8f0;
+  --its-bg-glass: rgba(255, 255, 255, 0.92);
+  --its-bg-subtle: rgba(15, 23, 42, 0.03);
+
+  /* Borders & Technical Grids */
+  --its-border-subtle: #e2e8f0;
+  --its-border-default: #cbd5e1;
+  --its-border-accent: #bfdbfe;
+  --its-border-focused: #2563eb;
+  --its-grid-line: rgba(37, 99, 235, 0.04);
+
+  /* Typography Colors */
+  --its-text-primary: #0f172a;    /* Deep slate */
+  --its-text-secondary: #334155;  /* Slate text */
+  --its-text-muted: #64748b;      /* Muted metadata */
+  --its-text-disabled: #94a3b8;   /* Disabled */
+  --its-text-accent: #2563eb;     /* Electric Blue */
+  --its-text-brand: #1e3a8a;      /* Deep Blue */
+  --its-text-teal: #0d9488;       /* Teal Accent */
+  --its-text-cyan: #0284c7;       /* Refined High-Contrast Cerulean */
+  --its-text-indigo: #4f46e5;     /* Subtle Indigo */
+
+  /* Transportation Operational Status Colors */
+  --its-signal-green: #10b981;
+  --its-signal-green-bg: #ecfdf5;
+  --its-signal-green-border: #a7f3d0;
+  --its-signal-green-glow: 0 0 10px rgba(16, 185, 129, 0.2);
+
+  --its-signal-yellow: #f59e0b;
+  --its-signal-yellow-bg: #fffbeb;
+  --its-signal-yellow-border: #fde68a;
+  --its-signal-yellow-glow: 0 0 10px rgba(245, 158, 11, 0.2);
+
+  --its-signal-red: #ef4444;
+  --its-signal-red-bg: #fef2f2;
+  --its-signal-red-border: #fecaca;
+  --its-signal-red-glow: 0 0 10px rgba(239, 68, 68, 0.2);
+
+  /* Telemetry Quality & State */
+  --its-fresh-blue: #2563eb;
+  --its-fresh-teal: #0d9488;
+  --its-fresh-bg: #eff6ff;
+  --its-stale-gray: #64748b;
+  --its-stale-bg: #f1f5f9;
+
+  /* Refined Light Gradients */
+  --its-gradient-hero: linear-gradient(135deg, #ffffff 0%, #f0fdfa 50%, #eff6ff 100%);
+  --its-gradient-card: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --its-gradient-nav-active: linear-gradient(90deg, #eff6ff 0%, #f0fdfa 100%);
+  --its-gradient-brand: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  --its-gradient-teal: linear-gradient(135deg, #0d9488 0%, #2563eb 100%);
+  --its-gradient-glow: radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.05), transparent 70%);
+
+  /* Typography Scale */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.8125rem;  /* 13px */
+  --text-base: 0.875rem; /* 14px */
+  --text-md: 0.9375rem;  /* 15px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.375rem;   /* 22px */
+  --text-2xl: 1.75rem;   /* 28px */
+  --text-3xl: 2.25rem;   /* 36px */
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Border Radius (Moderate 8-12px) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  /* Soft Light Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 3px 8px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 35px -5px rgba(15, 23, 42, 0.1), 0 10px 15px -5px rgba(15, 23, 42, 0.04);
+
+  /* Animation Durations & Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   Global Reset & Base Light Styles
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--its-bg-app);
+  color: var(--its-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Monospace Utilities */
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+/* Custom Refined Scrollbars (Light) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--its-bg-app);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==========================================================================
+   Core Component Design System (Light Industrial)
+   ========================================================================== */
+
+/* 1. Cards & Surfaces */
+.its-card {
+  background: var(--its-bg-card);
+  border: 1px solid var(--its-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.its-card:hover {
+  border-color: var(--its-border-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.its-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.its-card-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--its-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 2. Button System (Industrial Precision) */
+.its-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--its-border-default);
+  background: #ffffff;
+  color: var(--its-text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.its-btn:hover {
+  background: var(--its-bg-subsurface);
+  border-color: var(--its-border-accent);
+  color: var(--its-text-accent);
+}
+
+.its-btn:active {
+  transform: translateY(1px);
+}
+
+.its-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.its-btn-primary {
+  background: var(--its-gradient-brand);
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+}
+
+.its-btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.its-btn-teal {
+  background: var(--its-gradient-teal);
+  border: 1px solid #0d9488;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+}
+
+.its-btn-teal:hover {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  color: #ffffff;
+}
+
+.its-btn-danger {
+  background: #ffffff;
+  border: 1px solid var(--its-signal-red-border);
+  color: var(--its-signal-red);
+}
+
+.its-btn-danger:hover {
+  background: var(--its-signal-red-bg);
+  border-color: var(--its-signal-red);
+}
+
+.its-btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: var(--its-text-secondary);
+}
+
+.its-btn-ghost:hover {
+  background: var(--its-bg-subsurface);
+  color: var(--its-text-primary);
+}
+
+/* 3. Form Inputs & Selects */
+.its-input {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--its-border-default);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  color: var(--its-text-primary);
+  font-size: var(--text-xs);
+  font-family: var(--font-sans);
+  outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all var(--transition-fast);
+}
+
+.its-input:focus {
+  border-color: var(--its-border-focused);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.its-input::placeholder {
+  color: var(--its-text-disabled);
+}
+
+.its-select {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--its-border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--its-text-primary);
+  font-size: var(--text-xs);
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.its-select:focus {
+  border-color: var(--its-border-focused);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* 4. Professional Engineering Tables */
+.its-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--its-border-subtle);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+}
+
+.its-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--text-xs);
+}
+
+.its-table th {
+  padding: 10px 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+  color: var(--its-text-muted);
+  background: var(--its-bg-subsurface);
+  border-bottom: 1px solid var(--its-border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.its-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--its-border-subtle);
+  color: var(--its-text-secondary);
+  transition: background var(--transition-fast);
+}
+
+.its-table tr:last-child td {
+  border-bottom: none;
+}
+
+.its-table tr:hover td {
+  background: var(--its-bg-hover);
+  color: var(--its-text-primary);
+}
+
+/* 5. Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-badge.healthy,
+.status-badge.active,
+.status-badge.connected,
+.status-badge.fresh,
+.status-badge.green,
+.status-badge.mitigated,
+.status-badge.resolved {
+  background: var(--its-signal-green-bg);
+  color: #065f46;
+  border: 1px solid var(--its-signal-green-border);
+}
+.status-badge.healthy::before,
+.status-badge.active::before,
+.status-badge.connected::before,
+.status-badge.fresh::before,
+.status-badge.green::before,
+.status-badge.mitigated::before,
+.status-badge.resolved::before {
+  background-color: var(--its-signal-green);
+}
+
+.status-badge.degraded,
+.status-badge.aging,
+.status-badge.warning,
+.status-badge.yellow,
+.status-badge.medium,
+.status-badge.connecting {
+  background: var(--its-signal-yellow-bg);
+  color: #92400e;
+  border: 1px solid var(--its-signal-yellow-border);
+}
+.status-badge.degraded::before,
+.status-badge.aging::before,
+.status-badge.warning::before,
+.status-badge.yellow::before,
+.status-badge.medium::before,
+.status-badge.connecting::before {
+  background-color: var(--its-signal-yellow);
+}
+
+.status-badge.critical,
+.status-badge.stale,
+.status-badge.offline,
+.status-badge.failed,
+.status-badge.red,
+.status-badge.high,
+.status-badge.detected {
+  background: var(--its-signal-red-bg);
+  color: #991b1b;
+  border: 1px solid var(--its-signal-red-border);
+}
+.status-badge.critical::before,
+.status-badge.stale::before,
+.status-badge.offline::before,
+.status-badge.failed::before,
+.status-badge.red::before,
+.status-badge.high::before,
+.status-badge.detected::before {
+  background-color: var(--its-signal-red);
+}
+
+.status-badge.neutral,
+.status-badge.not_configured,
+.status-badge.no_data,
+.status-badge.blue {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.status-badge.neutral::before,
+.status-badge.not_configured::before,
+.status-badge.no_data::before,
+.status-badge.blue::before {
+  background-color: var(--its-text-accent);
+}
+
+/* 6. Metric Cards */
+.metric-label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--its-text-muted);
+}
+
+.metric-value {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--its-text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.metric-unit {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--its-text-muted);
+  font-family: var(--font-sans);
+  margin-left: 4px;
+}
