@@ -1,0 +1,5 @@
+{
+ "status": "INSUFFICIENT_DATA",
+ "overall_verdict": "INSUFFICIENT_DATA",
+ "detail": "No traffic telemetry was recorded on either side of this change, so its effect cannot be measured. This is not evidence the change had no effect."
+}

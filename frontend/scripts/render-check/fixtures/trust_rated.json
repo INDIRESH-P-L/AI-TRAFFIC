@@ -1,0 +1,76 @@
+{
+ "intersection_id": "afc390e2-9cb0-497f-9760-88c122289c5d",
+ "intersection_name": "Avinashi Rd @ Hope College",
+ "score": 90.3,
+ "band": "TRUSTED",
+ "window_minutes": 60,
+ "components": [
+  {
+   "name": "controller_readable",
+   "label": "Controller readability",
+   "weight": 0.3,
+   "score": 100.0,
+   "status": "SCORED",
+   "explanation": "Controller has a live protocol session; last heartbeat 0s ago.",
+   "observed": {
+    "connection_status": "CONNECTED",
+    "protocol": "NTCIP_1202",
+    "last_heartbeat_age_sec": 0.0
+   }
+  },
+  {
+   "name": "telemetry_freshness",
+   "label": "Telemetry freshness",
+   "weight": 0.3,
+   "score": null,
+   "status": "NOT_APPLICABLE",
+   "explanation": "No traffic telemetry has ever been recorded for this junction.",
+   "observed": {}
+  },
+  {
+   "name": "detector_health",
+   "label": "Detector health",
+   "weight": 0.2,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No detectors or cameras are configured at this junction.",
+   "observed": {}
+  },
+  {
+   "name": "signal_state_coverage",
+   "label": "Signal state coverage",
+   "weight": 0.1,
+   "score": 61.1,
+   "status": "SCORED",
+   "explanation": "220 signal state reading(s) in the last 60 minutes.",
+   "observed": {
+    "readings_in_window": 220,
+    "readings_for_full_coverage": 360,
+    "window_minutes": 60
+   }
+  },
+  {
+   "name": "sample_density",
+   "label": "Observation density",
+   "weight": 0.1,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No detector is configured, so there is no expected observation rate.",
+   "observed": {}
+  }
+ ],
+ "components_scored": 2,
+ "components_not_applicable": 3,
+ "weight_basis": "Renormalised across the 2 scorable component(s). A junction is not penalised for equipment it does not have; missing equipment is reported as coverage, not as a low score.",
+ "weakest_component": {
+  "name": "signal_state_coverage",
+  "score": 61.1,
+  "explanation": "220 signal state reading(s) in the last 60 minutes."
+ },
+ "ai_gate": {
+  "allowed": true,
+  "threshold": 60.0,
+  "reason": null
+ },
+ "computed_at": "2026-09-23T17:34:22.974843+00:00"
+}

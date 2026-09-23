@@ -15,10 +15,19 @@ from app.models.entities import (
     User, SignalController, SignalPhase, SignalCommand, AuditLog, utc_now
 )
 from app.schemas.domain import (
-    SignalControllerCreate, SignalControllerResponse, SignalCommandRequest, SignalCommandResponse, SafetyCheckResult
+    SignalControllerCreate,
+    SignalControllerResponse,
+    SignalCommandRequest,
+    SignalCommandResponse,
+    SignalCommandPreview,
+    SafetyCheckResult,
 )
 from app.safety.safety_engine import DeterministicSafetyEngine
 from app.providers.controller_provider import get_controller_adapter
+from app.providers.controller_sync import (
+    apply_controller_reading,
+    apply_post_command_reading,
+)
 from app.api.v1.websocket import ws_manager
 
 router = APIRouter(prefix="/signals", tags=["Signal Control"])
@@ -95,22 +104,76 @@ def test_controller_connection(
         raise HTTPException(status_code=404, detail="Signal controller not found")
 
     adapter = get_controller_adapter(ctrl.vendor, ctrl.model, ctrl.protocol, ctrl.ip_address, ctrl.port)
-    health = adapter.health_check()
-
-    if health["online"]:
-        ctrl.connection_status = "CONNECTED"
-        ctrl.last_heartbeat = utc_now()
-    else:
-        ctrl.connection_status = "DISCONNECTED"
-
+    provenance = apply_controller_reading(ctrl, adapter, db=db)
     db.commit()
 
     return {
         "controller_id": ctrl.id,
         "name": ctrl.name,
+        "protocol": ctrl.protocol,
         "connection_status": ctrl.connection_status,
-        "health_details": health
+        "state_readable": provenance["state_readable"],
+        "state_unreadable_reason": provenance["state_unreadable_reason"],
+        "observed_active_phase": provenance["observed_active_phase"],
+        "health_details": provenance,
     }
+
+
+@router.post("/commands/validate", response_model=SignalCommandPreview)
+def validate_signal_command(
+    cmd: SignalCommandRequest,
+    refresh_state: bool = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["ADMIN", "ENGINEER", "OPERATOR"]))
+):
+    """Dry-run a command through the Safety Engine. Writes nothing.
+
+    This is the preview step of the guided command workflow: the operator sees
+    each rule's verdict before committing. It runs the identical validation the
+    real command path runs - not a lookalike - so a preview that passes is a
+    genuine statement about the command, subject only to state changing between
+    preview and confirmation (which the freshness window bounds).
+
+    `refresh_state` re-reads the controller first, so the preview reflects the
+    phase the hardware is displaying now rather than the last stored reading.
+    """
+    controller = db.query(SignalController).filter(SignalController.id == cmd.controller_id).first()
+    if not controller:
+        raise HTTPException(status_code=404, detail="Signal controller not found")
+
+    state_provenance = None
+    if refresh_state:
+        adapter = get_controller_adapter(
+            controller.vendor, controller.model, controller.protocol,
+            controller.ip_address, controller.port
+        )
+        state_provenance = apply_controller_reading(controller, adapter, db=db)
+        db.commit()
+
+    existing_cmd = db.query(SignalCommand).filter(
+        SignalCommand.idempotency_key == cmd.idempotency_key
+    ).first()
+
+    issued_at = utc_now()
+    safety_result = DeterministicSafetyEngine.validate_command(
+        controller=controller,
+        requested_phase_num=cmd.requested_phase,
+        duration_sec=cmd.duration_sec,
+        issued_at=issued_at,
+        idempotency_key=cmd.idempotency_key,
+        existing_command=existing_cmd,
+    )
+
+    return SignalCommandPreview(
+        controller_id=controller.id,
+        controller_name=controller.name,
+        requested_phase=cmd.requested_phase,
+        duration_sec=cmd.duration_sec,
+        would_be_accepted=safety_result.is_safe,
+        safety_report=safety_result,
+        controller_state=state_provenance,
+        evaluated_at=issued_at,
+    )
 
 
 @router.post("/commands", response_model=SignalCommandResponse)
@@ -189,15 +252,25 @@ async def issue_signal_command(
     success, ack_msg, payload = adapter.send_command(cmd.requested_phase, cmd.duration_sec)
 
     if success:
+        # The controller acknowledged the command. What it is actually
+        # displaying is a separate question, answered by re-reading the
+        # hardware - never by assuming the request took effect.
+        post_state, effect_observed = apply_post_command_reading(
+            controller, adapter, cmd.requested_phase, db=db
+        )
         command_record.status = "EXECUTED"
         command_record.controller_acknowledged_at = utc_now()
-        command_record.response_payload = payload
-        controller.active_phase = cmd.requested_phase
-        controller.current_phase_start = utc_now()
+        command_record.response_payload = {
+            "acknowledgement": payload,
+            "post_command_state": post_state,
+            "effect_observed": effect_observed,
+        }
         audit_result = "EXECUTED"
     else:
         command_record.status = "FAILED"
-        command_record.response_payload = {"error": ack_msg}
+        command_record.response_payload = {"error": ack_msg, "details": payload}
+        post_state = {"effect_verification": "NOT_ATTEMPTED_COMMAND_FAILED"}
+        effect_observed = False
         audit_result = "FAILED"
 
     # Step 3: Record Immutable Audit Log
@@ -212,7 +285,9 @@ async def issue_signal_command(
             "controller_id": controller.id,
             "phase": cmd.requested_phase,
             "duration": cmd.duration_sec,
-            "ack": ack_msg
+            "ack": ack_msg,
+            "effect_verification": post_state.get("effect_verification"),
+            "observed_active_phase": post_state.get("observed_active_phase"),
         }
     )
     db.add(audit)
@@ -222,7 +297,9 @@ async def issue_signal_command(
     await ws_manager.broadcast_event("signal.updated", {
         "controller_id": controller.id,
         "active_phase": controller.active_phase,
-        "command_status": command_record.status
+        "command_status": command_record.status,
+        "effect_verification": post_state.get("effect_verification"),
+        "state_readable": post_state.get("state_readable"),
     })
 
     return SignalCommandResponse(

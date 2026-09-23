@@ -1,0 +1,103 @@
+# TRAFFICINTEL AI - Full stack
+#
+#   docker compose up -d
+#   → console  http://localhost:8080
+#   → API      http://localhost:8080/api/v1  (proxied through the console)
+#
+# The API port is NOT published to the host. Everything reaches it through the
+# console's nginx, so there is one origin, no CORS, and one place to put TLS.
+# Publish 8000 yourself if you need to hit the API directly during development.
+
+name: trafficintel
+
+services:
+  # ---------------------------------------------------------------------
+  # PostgreSQL + PostGIS
+  # ---------------------------------------------------------------------
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trafficintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-trafficintel}
+      # Fail fast on a corrupt page rather than serving quietly wrong rows.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - trafficintel-db:/var/lib/postgresql/data
+    healthcheck:
+      # The database name is passed explicitly: pg_isready otherwise probes a
+      # database named after the user and reports ready before ours exists.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trafficintel} -d ${POSTGRES_DB:-trafficintel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------
+  # Schema migration - runs to completion, then exits
+  # ---------------------------------------------------------------------
+  #
+  # Deliberately a separate one-shot service rather than a line in the API's
+  # entrypoint. If the API migrated on boot, two replicas starting together
+  # would race each other through the same migration, and the loser's failure
+  # would surface as a crash-looping pod rather than as a failed deploy.
+  migrate:
+    build:
+      context: ./backend
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trafficintel}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trafficintel}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------------------
+  # API
+  # ---------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trafficintel}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trafficintel}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      # Empty by design. The console and the API are served from a single
+      # origin through nginx, so browser requests are same-origin and CORS is
+      # never consulted. An empty allow-list therefore costs nothing and means
+      # this deployment grants NO cross-origin access to the traffic network.
+      # Set it only if something genuinely off-origin must call the API.
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
+
+      # The controller poller runs in-process. Exactly ONE instance across the
+      # whole deployment may have this enabled: two pollers write two rows per
+      # observation, which would silently double every throughput and
+      # arrival-on-green figure computed from the log. See README §9.3 before
+      # scaling this service beyond one replica.
+      CONTROLLER_POLL_ENABLED: ${CONTROLLER_POLL_ENABLED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # No ports: reached through the console's proxy.
+
+  # ---------------------------------------------------------------------
+  # Operations console (static bundle + API proxy)
+  # ---------------------------------------------------------------------
+  console:
+    build:
+      context: ./frontend
+    ports:
+      - "${CONSOLE_PORT:-8080}:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  trafficintel-db:

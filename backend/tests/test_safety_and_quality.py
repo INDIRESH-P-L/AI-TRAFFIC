@@ -162,3 +162,28 @@ def test_traffic_state_engine_zero_fake_data():
     assert metric.avg_speed_kph is None
     assert metric.traffic_pressure is None
     assert metric.calculation_method == "UNAVAILABLE_ZERO_OBSERVATIONS"
+
+
+def test_safety_engine_handles_naive_timestamps_from_the_database():
+    """Persisted controllers return naive datetimes; the engine must not raise.
+
+    SQLAlchemy's DateTime column drops the timezone on SQLite, so a controller
+    loaded from the database carries a naive `current_phase_start` while the
+    engine compares against aware UTC. Subtracting the two used to raise
+    TypeError, turning every command against a persisted controller into a 500.
+    """
+    ctrl = create_test_controller(active_phase=2, elapsed_sec=3.0)
+    ctrl.current_phase_start = ctrl.current_phase_start.replace(tzinfo=None)
+
+    res = DeterministicSafetyEngine.validate_command(
+        controller=ctrl,
+        requested_phase_num=4,
+        duration_sec=15,
+        issued_at=utc_now().replace(tzinfo=None),
+        idempotency_key="key_naive_ts",
+    )
+
+    # The point is that it evaluates rather than raising; phase 4 conflicts
+    # with the active phase 2, so the verdict is a rejection.
+    assert not res.is_safe
+    assert res.details["active_phase_elapsed_sec"] == pytest.approx(3.0, abs=1.0)

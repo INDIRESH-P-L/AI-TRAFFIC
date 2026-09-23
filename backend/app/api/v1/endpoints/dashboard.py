@@ -28,7 +28,11 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
     connected_controllers = db.query(SignalController).filter(SignalController.connection_status == "CONNECTED").count()
     
     total_cameras = db.query(Camera).count()
+    # CONNECTED means frames have arrived. REACHABLE means only that the host
+    # answers on its port; it is reported separately so the two are never
+    # conflated on the wallboard.
     connected_cameras = db.query(Camera).filter(Camera.stream_status == "CONNECTED").count()
+    reachable_cameras = db.query(Camera).filter(Camera.stream_status == "REACHABLE").count()
     
     total_sensors = db.query(Sensor).count()
     connected_sensors = db.query(Sensor).filter(Sensor.health_status == "CONNECTED").count()
@@ -60,7 +64,13 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user: User = De
             "cameras": {
                 "total": total_cameras,
                 "connected": connected_cameras,
-                "status": "ONLINE" if connected_cameras > 0 else ("OFFLINE" if total_cameras > 0 else "NOT_CONFIGURED")
+                "reachable_not_streaming": reachable_cameras,
+                "status": (
+                    "STREAMING" if connected_cameras > 0
+                    else "REACHABLE_NO_FRAMES" if reachable_cameras > 0
+                    else "OFFLINE" if total_cameras > 0
+                    else "NOT_CONFIGURED"
+                )
             },
             "sensors": {
                 "total": total_sensors,

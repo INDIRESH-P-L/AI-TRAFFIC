@@ -108,7 +108,13 @@ export const api = {
   testCameraConnection: (id: string) =>
     apiRequest<any>(`/cameras/${id}/test-connection`, { method: 'POST' }),
 
+  // The camera and sensor create endpoints take query parameters, not a body.
+  createCameraQuery: (query: string) =>
+    apiRequest<any>(`/cameras?${query}`, { method: 'POST' }),
+
   getSensors: () => apiRequest<any[]>('/sensors'),
+  createSensorQuery: (query: string) =>
+    apiRequest<any>(`/sensors?${query}`, { method: 'POST' }),
   createSensor: (data: any) =>
     apiRequest<any>('/sensors', { method: 'POST', body: JSON.stringify(data) }),
 
@@ -167,6 +173,143 @@ export const api = {
     apiRequest<any>(`/settings/test-controller-wizard?ip_address=${ip}&port=${port}`, { method: 'POST' }),
   testCameraWizard: (streamUrl: string) =>
     apiRequest<any>(`/settings/test-camera-wizard?stream_url=${encodeURIComponent(streamUrl)}`, { method: 'POST' }),
+
+  // GIS map layers (every feature carries provenance)
+  getMapLayers: (include?: string[]) =>
+    apiRequest<any>(`/map${include && include.length ? `?include=${include.join(',')}` : ''}`),
+
+  // Junction timeline & historical replay
+  getJunctionTimeline: (id: string, hours = 24, limit = 50) =>
+    apiRequest<any>(`/timeline/${id}?hours=${hours}&limit=${limit}`),
+  getJunctionReplay: (id: string, minutes = 60) =>
+    apiRequest<any>(`/timeline/${id}/replay?minutes=${minutes}`),
+
+  // Guided signal command workflow: preview validates without writing anything
+  validateSignalCommand: (data: any, refreshState = true) =>
+    apiRequest<any>(`/signals/commands/validate?refresh_state=${refreshState}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // ---- Phase 2: provider health & stream diagnostics ----
+  getProviderHealth: () => apiRequest<any>('/health/providers'),
+  getStreamHealth: () => apiRequest<any>('/health/stream'),
+  getPollerStatus: () => apiRequest<any>('/health/poller'),
+  pollNow: () => apiRequest<any>('/health/poller/poll-now', { method: 'POST' }),
+
+  // ---- Phase 2: alert rules ----
+  getRuleConditionTypes: () => apiRequest<any>('/rules/condition-types'),
+  getRules: () => apiRequest<any[]>('/rules'),
+  createRule: (data: any) =>
+    apiRequest<any>('/rules', { method: 'POST', body: JSON.stringify(data) }),
+  updateRule: (id: string, data: any) =>
+    apiRequest<any>(`/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteRule: (id: string) => apiRequest<any>(`/rules/${id}`, { method: 'DELETE' }),
+  evaluateRule: (id: string, dryRun = true) =>
+    apiRequest<any>(`/rules/${id}/evaluate?dry_run=${dryRun}`, { method: 'POST' }),
+  getRuleEvaluations: (id: string) => apiRequest<any>(`/rules/${id}/evaluations`),
+  getAlertDeliveries: (alertId: string) =>
+    apiRequest<any>(`/rules/alerts/${alertId}/deliveries`),
+  acknowledgeAlert: (alertId: string) =>
+    apiRequest<any>(`/rules/alerts/${alertId}/acknowledge`, { method: 'POST' }),
+
+  // ---- Phase 2: performance analytics ----
+  getPerformanceReport: (id: string, hours = 24) =>
+    apiRequest<any>(`/analytics/performance/${id}?hours=${hours}`),
+  getTimeOfDayProfile: (id: string, days = 7) =>
+    apiRequest<any>(`/analytics/time-of-day/${id}?days=${days}`),
+
+  // ---- Phase 2: optimiser & scenario sandbox ----
+  recommendTiming: (data: any) =>
+    apiRequest<any>('/optimizer/recommend', { method: 'POST', body: JSON.stringify(data) }),
+  getRecommendations: (id: string) =>
+    apiRequest<any>(`/optimizer/recommendations/${id}`),
+  runScenario: (data: any) =>
+    apiRequest<any>('/scenario/run', { method: 'POST', body: JSON.stringify(data) }),
+  getScenarioTemplate: (controllerId: string) =>
+    apiRequest<any>(`/scenario/template/${controllerId}`),
+  getScenarioRuns: (intersectionId?: string) =>
+    apiRequest<any>(`/scenario/runs${intersectionId ? `?intersection_id=${intersectionId}` : ''}`),
+
+  // ---- Phase 2: governance ----
+  getScopes: () => apiRequest<any>('/governance/scopes'),
+  exploreAudit: (params: string) => apiRequest<any>(`/governance/audit?${params}`),
+  verifyAuditChain: () => apiRequest<any>('/governance/audit/verify'),
+  getApiKeys: () => apiRequest<any>('/governance/api-keys'),
+  createApiKey: (data: any) =>
+    apiRequest<any>('/governance/api-keys', { method: 'POST', body: JSON.stringify(data) }),
+  revokeApiKey: (id: string) =>
+    apiRequest<any>(`/governance/api-keys/${id}`, { method: 'DELETE' }),
+
+  // ---- Phase 2: incident lifecycle ----
+  acknowledgeIncident: (id: string) =>
+    apiRequest<any>(`/incidents/${id}/acknowledge`, { method: 'POST' }),
+  assignIncident: (id: string, assignee: string) =>
+    apiRequest<any>(`/incidents/${id}/assign?assignee=${encodeURIComponent(assignee)}`, {
+      method: 'POST',
+    }),
+  getIncidentSla: (id: string) => apiRequest<any>(`/incidents/${id}/sla`),
+  getIncidentTimeline: (id: string) => apiRequest<any>(`/incidents/${id}/timeline`),
+  getIncidentEvidence: (id: string) => apiRequest<any>(`/incidents/${id}/evidence`),
+  getIncidentReport: (id: string) => apiRequest<any>(`/incidents/${id}/report`),
+
+  // ---- Phase 2: Copilot 2.0 ----
+  askCopilot: (query: string, intersectionId?: string) =>
+    apiRequest<any>('/copilot/ask', {
+      method: 'POST',
+      body: JSON.stringify({ query, intersection_id: intersectionId }),
+    }),
+  getCopilotTools: () => apiRequest<any>('/copilot/tools'),
+  getCopilotSession: () => apiRequest<any>('/copilot/session'),
+  clearCopilotSession: () => apiRequest<any>('/copilot/session', { method: 'DELETE' }),
+
+  // ---- Phase 2: import & reporting ----
+  getImportFormats: () => apiRequest<any>('/ingest/formats'),
+  getReportCatalog: () => apiRequest<any>('/reports/catalog'),
+  getDailyReport: () => apiRequest<any>('/reports/daily-operations'),
+
+  // ---- Phase 3: data-quality trust score ----
+  getNetworkTrust: (windowMinutes = 60) =>
+    apiRequest<any>(`/trust/network?window_minutes=${windowMinutes}`),
+  getJunctionTrust: (id: string, windowMinutes = 60) =>
+    apiRequest<any>(`/trust/${id}?window_minutes=${windowMinutes}`),
+
+  // ---- Phase 3: post-change verification ----
+  verifyCommand: (commandId: string, windowMinutes = 30) =>
+    apiRequest<any>(`/verification/command/${commandId}?window_minutes=${windowMinutes}`),
+  getRecentVerifications: (intersectionId?: string, limit = 10) =>
+    apiRequest<any>(
+      `/verification/recent?limit=${limit}` +
+        (intersectionId ? `&intersection_id=${intersectionId}` : ''),
+    ),
+  // `changed_at` is URI-encoded because an ISO timestamp carries a "+00:00"
+  // offset and a bare "+" in a query string decodes as a space.
+  verifyWindow: (id: string, changedAt: string, windowMinutes = 30, settleMinutes = 2) =>
+    apiRequest<any>(
+      `/verification/window/${id}?changed_at=${encodeURIComponent(changedAt)}` +
+        `&window_minutes=${windowMinutes}&settle_minutes=${settleMinutes}`,
+    ),
+
+  // ---- Phase 3: corridor stringline ----
+  getStringline: (corridorId: string, minutes = 15, phases?: string) =>
+    apiRequest<any>(
+      `/stringline/${corridorId}?minutes=${minutes}` +
+        (phases ? `&phases=${encodeURIComponent(phases)}` : ''),
+    ),
+
+  // ---- Phase 3: shift handover ----
+  getHandovers: (limit = 20) => apiRequest<any>(`/handover?limit=${limit}`),
+  previewHandover: (shiftHours = 8) =>
+    apiRequest<any>(`/handover/preview?shift_hours=${shiftHours}`),
+  createHandover: (data: any) =>
+    apiRequest<any>('/handover', { method: 'POST', body: JSON.stringify(data) }),
+  getHandover: (id: string) => apiRequest<any>(`/handover/${id}`),
+  updateHandover: (id: string, data: any) =>
+    apiRequest<any>(`/handover/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  signOffHandover: (id: string) =>
+    apiRequest<any>(`/handover/${id}/sign-off`, { method: 'POST' }),
+  acknowledgeHandover: (id: string) =>
+    apiRequest<any>(`/handover/${id}/acknowledge`, { method: 'POST' }),
 
   // Users
   getUsers: () => apiRequest<any[]>('/users'),

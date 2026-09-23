@@ -52,13 +52,22 @@ def get_traffic_forecast(
             "forecast_points": []
         }
 
-    # If real observations exist, compute moving trend
+    # Sufficient history exists, but no forecasting model has been trained and
+    # registered against it yet. Reporting a model name and error metrics here
+    # would be fabrication: no model has been fitted, so no MAE or RMSE has
+    # been measured.
     return {
         "intersection_id": intersection_id,
         "intersection_name": inter.name,
-        "forecast_status": "VALID_FORECAST_PRODUCED",
+        "forecast_status": "NO_FORECAST_MODEL_REGISTERED",
         "historical_observations_count": obs_count,
-        "model_used": "Temporal_Traffic_Trend_v1.0",
-        "validation_metrics": {"mae": 3.4, "rmse": 4.8},
+        "observations_required_threshold": MIN_OBSERVATIONS_REQUIRED,
+        "message": (
+            "Sufficient historical observations exist, but no trained forecasting model is "
+            "registered for this intersection. Register and activate a model under "
+            "/api/v1/predictions/models to produce forecasts."
+        ),
+        "model_used": None,
+        "validation_metrics": None,
         "forecast_points": []
     }

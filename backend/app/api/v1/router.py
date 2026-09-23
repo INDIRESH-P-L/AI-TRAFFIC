@@ -20,7 +20,17 @@ from app.api.v1.endpoints import (
     maintenance,
     audit,
     settings,
-    users
+    users,
+    map_layers,
+    timeline,
+    health,
+    rules,
+    optimizer,
+    governance,
+    ingest,
+    reports,
+    insights,
+    readiness,
 )
 
 api_router = APIRouter()
@@ -43,3 +53,13 @@ api_router.include_router(maintenance.router)
 api_router.include_router(audit.router)
 api_router.include_router(settings.router)
 api_router.include_router(users.router)
+api_router.include_router(map_layers.router)
+api_router.include_router(timeline.router)
+api_router.include_router(readiness.router)
+api_router.include_router(health.router)
+api_router.include_router(rules.router)
+api_router.include_router(optimizer.router)
+api_router.include_router(governance.router)
+api_router.include_router(ingest.router)
+api_router.include_router(reports.router)
+api_router.include_router(insights.router)

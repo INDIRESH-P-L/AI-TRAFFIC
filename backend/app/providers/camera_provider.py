@@ -9,6 +9,7 @@ import urllib.parse
 from typing import Dict, Any, Tuple
 import time
 from app.providers.base import CameraProvider
+from app.health.monitor import provider_monitor
 
 
 class NetworkCameraAdapter(CameraProvider):
@@ -44,6 +45,10 @@ class NetworkCameraAdapter(CameraProvider):
             latency = (time.time() - start_time) * 1000.0
             sock.close()
 
+            provider_monitor.record(
+                "camera:{}:{}".format(host, port), True, latency,
+                kind="CAMERA", label="Camera {}:{}".format(host, port),
+            )
             return True, f"Camera reachable at {host}:{port} ({latency:.1f}ms)", {
                 "host": host,
                 "port": port,
@@ -68,17 +73,28 @@ class NetworkCameraAdapter(CameraProvider):
             }
 
     def get_stream_info(self) -> Dict[str, Any]:
+        """Reports what the reachability test actually established.
+
+        A TCP handshake proves a host is listening. It negotiates no RTSP
+        session, so it reveals nothing about codec, resolution or frame rate.
+        Those fields stay null with an explicit reason rather than carrying
+        typical-looking values that an operator would read as measured.
+        """
         success, msg, details = self.test_connection()
         if not success:
             return {
                 "stream_status": "OFFLINE",
-                "fps": 0.0,
-                "resolution": "UNAVAILABLE",
+                "fps": None,
+                "resolution": None,
+                "measurement_status": "NOT_MEASURED_HOST_UNREACHABLE",
+                "message": msg,
                 "details": details
             }
         return {
-            "stream_status": "CONNECTED",
-            "fps": 25.0,
-            "resolution": "1920x1080",
+            "stream_status": "REACHABLE",
+            "fps": None,
+            "resolution": None,
+            "measurement_status": "NOT_MEASURED_NO_RTSP_SESSION",
+            "message": msg,
             "details": details
         }

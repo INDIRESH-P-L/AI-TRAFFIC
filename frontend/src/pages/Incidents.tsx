@@ -2,7 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
-import { GisMap } from '../components/GisMap';
+import { IncidentLifecyclePanel } from '../components/IncidentLifecyclePanel';
+import { OperationsMap } from '../components/map/OperationsMap';
+import type { MapData } from '../components/map/OperationsMap';
 import {
   AlertTriangle,
   Plus,
@@ -19,6 +21,7 @@ import {
 export const Incidents: React.FC = () => {
   const [incidents, setIncidents] = useState<any[]>([]);
   const [intersections, setIntersections] = useState<any[]>([]);
+  const [mapData, setMapData] = useState<MapData | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -35,12 +38,14 @@ export const Incidents: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [incData, interData] = await Promise.all([
+      const [incData, interData, layers] = await Promise.all([
         api.getIncidents(statusFilter),
         api.getIntersections(),
+        api.getMapLayers(['junctions', 'incidents']).catch(() => null),
       ]);
       setIncidents(incData);
       setIntersections(interData);
+      setMapData(layers);
 
       if (interData.length > 0 && !intersectionId) {
         setIntersectionId(interData[0].id);
@@ -273,8 +278,8 @@ export const Incidents: React.FC = () => {
             </div>
 
             <div style={{ flex: 1, position: 'relative' }}>
-              <GisMap
-                intersections={intersections}
+              <OperationsMap
+                data={mapData}
                 selectedId={selectedIntersection?.id}
                 height="100%"
               />
@@ -417,6 +422,12 @@ export const Incidents: React.FC = () => {
                     {selectedIncident.operator_notes || 'No operator notes added yet.'}
                   </div>
                 </div>
+
+                {/* SLA clocks, append-only timeline, traceable evidence */}
+                <IncidentLifecyclePanel
+                  incidentId={selectedIncident.id}
+                  onChanged={loadData}
+                />
               </>
             ) : (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--its-text-muted)', fontSize: 'var(--text-xs)' }}>

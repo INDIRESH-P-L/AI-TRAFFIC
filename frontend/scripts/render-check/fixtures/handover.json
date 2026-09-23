@@ -1,0 +1,111 @@
+{
+ "preview": true,
+ "detail": "Nothing has been stored. Create a handover to record this.",
+ "snapshot": {
+  "shift_start": "2026-09-23T09:34:23.021673+00:00",
+  "shift_end": "2026-09-23T17:34:23.021673+00:00",
+  "generated_at": "2026-09-23T17:34:23.039243+00:00",
+  "incidents": {
+   "open_count": 0,
+   "raised_this_shift": 0,
+   "resolved_this_shift": 0,
+   "unacknowledged_count": 0,
+   "sla_breached_count": 0,
+   "items": []
+  },
+  "alerts": {
+   "unacknowledged_count": 0,
+   "escalated_count": 0,
+   "items": []
+  },
+  "providers": {
+   "total_known": 3,
+   "degraded_count": 0,
+   "unprobed_count": 0,
+   "degraded": [],
+   "unprobed_note": null
+  },
+  "signal_activity": {
+   "commands_issued": 0,
+   "commands_executed": 0,
+   "rejected_by_safety_engine": 0,
+   "rejection_reasons": []
+  },
+  "data_coverage": {
+   "network_trust_mean_of_rated": 90.3,
+   "rated_junctions": 3,
+   "unrated_junctions": 1,
+   "by_band": {
+    "UNRATED": 1,
+    "TRUSTED": 3
+   },
+   "ai_gated_count": 1
+  },
+  "blind_spots": {
+   "count": 4,
+   "total_blind_count": 1,
+   "partially_blind_count": 3,
+   "total_junctions": 4,
+   "items": [
+    {
+     "intersection_id": "3ac6e55b-1f18-4454-ae77-cad3ce5ffdfd",
+     "name": "Junction 303",
+     "code": "JCT-303",
+     "observations_this_shift": 0,
+     "signal_readings_this_shift": 0,
+     "severity": "TOTAL",
+     "observed_channels": [],
+     "reasons": [
+      "no traffic observations recorded this shift",
+      "no signal state observed this shift",
+      "no signal controller configured"
+     ]
+    },
+    {
+     "intersection_id": "afc390e2-9cb0-497f-9760-88c122289c5d",
+     "name": "Avinashi Rd @ Hope College",
+     "code": "DEMO-AV1",
+     "observations_this_shift": 0,
+     "signal_readings_this_shift": 220,
+     "severity": "PARTIAL",
+     "observed_channels": [
+      "signal state"
+     ],
+     "reasons": [
+      "no traffic observations recorded this shift"
+     ]
+    },
+    {
+     "intersection_id": "15eda842-647b-4fcf-a367-be370b3a8abd",
+     "name": "Avinashi Rd @ Peelamedu",
+     "code": "DEMO-AV2",
+     "observations_this_shift": 0,
+     "signal_readings_this_shift": 220,
+     "severity": "PARTIAL",
+     "observed_channels": [
+      "signal state"
+     ],
+     "reasons": [
+      "no traffic observations recorded this shift"
+     ]
+    },
+    {
+     "intersection_id": "c5ce40b0-0151-4027-a18b-4da6e192fb49",
+     "name": "Avinashi Rd @ Airport Gate",
+     "code": "DEMO-AV3",
+     "observations_this_shift": 0,
+     "signal_readings_this_shift": 220,
+     "severity": "PARTIAL",
+     "observed_channels": [
+      "signal state"
+     ],
+     "reasons": [
+      "no traffic observations recorded this shift"
+     ]
+    }
+   ],
+   "why_this_matters": "1 junction(s) were not observed at all this shift: a quiet console there means the platform was not watching, not that nothing happened, so treat their absence from the incident list as unknown rather than clear. A further 3 were observed on some channels but not others - partial coverage, listed so the next shift knows which readings do not exist rather than reading nothing as normal.",
+   "empty_reason": null
+  }
+ }
+}

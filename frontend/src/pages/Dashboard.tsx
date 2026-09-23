@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { GisMap } from '../components/GisMap';
+import { OperationsMap } from '../components/map/OperationsMap';
+import type { MapData } from '../components/map/OperationsMap';
+import { JunctionDrawer } from '../components/JunctionDrawer';
+import { OnboardingWizard } from '../components/OnboardingWizard';
 import { StatusBadge } from '../components/StatusBadge';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
 import {
@@ -26,20 +29,24 @@ export const Dashboard: React.FC = () => {
   const [filterMode, setFilterMode] = useState<'ALL' | 'HEALTHY' | 'ALERT'>('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [pingLatency, setPingLatency] = useState(12);
+  const [apiLatencyMs, setApiLatencyMs] = useState<number | null>(null);
+  const [mapData, setMapData] = useState<MapData | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const navigate = useNavigate();
 
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
       const startTime = performance.now();
-      const [sum, inters, audits] = await Promise.all([
+      const [sum, inters, audits, layers] = await Promise.all([
         api.getDashboardSummary().catch(() => null),
         api.getIntersections().catch(() => []),
         api.getAuditLogs().catch(() => []),
+        api.getMapLayers(['junctions', 'incidents']).catch(() => null),
       ]);
-      const latency = Math.round(performance.now() - startTime);
-      setPingLatency(Math.max(8, Math.min(latency, 85)));
+      setMapData(layers);
+      setApiLatencyMs(Math.round(performance.now() - startTime));
 
       setSummary(sum);
       setIntersections(inters);
@@ -86,19 +93,15 @@ export const Dashboard: React.FC = () => {
     (summary?.infrastructure?.total_intersections === 0 &&
       summary?.infrastructure?.controllers?.total === 0);
 
-  // Filtered intersections based on tactical filter
-  const displayedIntersections = intersections.filter(i => {
-    if (filterMode === 'HEALTHY') return i.operational_status === 'HEALTHY';
-    if (filterMode === 'ALERT') return i.operational_status !== 'HEALTHY';
-    return true;
-  });
-
-  // Calculate live network health percentage
-  const totalControllers = summary?.infrastructure?.controllers?.total || 1;
-  const connectedControllers = summary?.infrastructure?.controllers?.connected || 0;
-  const unackAlerts = summary?.alerts?.unacknowledged_count || 0;
-  const activeIncidents = summary?.incidents?.active_count || 0;
-  const healthScore = Math.max(75, Math.round((connectedControllers / Math.max(1, totalControllers)) * 100 - unackAlerts * 4 - activeIncidents * 2));
+  // Controller reachability, measured. Null when no controller is configured:
+  // there is no percentage to report about an empty network, and a floor on
+  // this number would tell an operator the grid is healthy when it is not.
+  const totalControllers = summary?.infrastructure?.controllers?.total ?? 0;
+  const connectedControllers = summary?.infrastructure?.controllers?.connected ?? 0;
+  const controllerAvailabilityPct =
+    totalControllers > 0
+      ? Math.round((connectedControllers / totalControllers) * 100)
+      : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -142,8 +145,23 @@ export const Dashboard: React.FC = () => {
                 fontWeight: 700,
               }}
             >
-              <Zap size={11} color="var(--its-signal-green)" />
-              <span>GRID HEALTH: {healthScore}%</span>
+              <Zap
+                size={11}
+                color={
+                  controllerAvailabilityPct === null
+                    ? 'var(--its-text-muted)'
+                    : controllerAvailabilityPct === 100
+                      ? 'var(--its-signal-green)'
+                      : controllerAvailabilityPct > 0
+                        ? 'var(--its-signal-yellow)'
+                        : 'var(--its-signal-red)'
+                }
+              />
+              <span title="Share of configured signal controllers with a readable protocol session">
+                {controllerAvailabilityPct === null
+                  ? 'CONTROLLERS: NONE CONFIGURED'
+                  : `CONTROLLERS REPORTING: ${connectedControllers}/${totalControllers} (${controllerAvailabilityPct}%)`}
+              </span>
             </div>
           </div>
 
@@ -152,7 +170,9 @@ export const Dashboard: React.FC = () => {
             <span>•</span>
             <span>JURISDICTION: <b style={{ color: 'var(--its-text-primary)' }}>NEMA TS2 DUAL-RING</b></span>
             <span>•</span>
-            <span style={{ color: 'var(--its-text-accent)' }}>LATENCY: <b className="mono">{pingLatency}ms LOCAL BUS</b></span>
+            <span style={{ color: 'var(--its-text-accent)' }}>
+              API ROUND TRIP: <b className="mono">{apiLatencyMs === null ? 'NOT MEASURED' : `${apiLatencyMs}ms`}</b>
+            </span>
             <span>•</span>
             <span style={{ color: 'var(--its-text-teal)' }}>ZERO FAKE DATA ENFORCED</span>
           </div>
@@ -241,19 +261,37 @@ export const Dashboard: React.FC = () => {
           <div style={{ flex: 1, position: 'relative' }}>
             {intersections.length === 0 ? (
               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-                <TruthfulEmptyState
-                  title="NO GIS INTERSECTION NODES RECORDED"
-                  description="Register real physical intersection coordinates to display the spatial traffic network on the Esri DOT World Light Gray basemap."
-                  actionText="Add Physical Intersection"
-                  actionLink="/intersections"
-                />
+                <div style={{ textAlign: 'center', maxWidth: '420px' }}>
+                  <div
+                    className="mono"
+                    style={{
+                      fontSize: 'var(--text-sm)', fontWeight: 700,
+                      color: 'var(--its-text-primary)', letterSpacing: '0.03em',
+                    }}
+                  >
+                    SYSTEM READY - NO TRAFFIC INFRASTRUCTURE IS CURRENTLY CONNECTED
+                  </div>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', lineHeight: 1.6, margin: '10px 0 14px' }}>
+                    The map plots junctions you have configured. Connect a signal
+                    controller, camera or detector and its measured state appears here.
+                    Nothing is placed on the map until real infrastructure reports.
+                  </p>
+                  <button onClick={() => setWizardOpen(true)} className="its-btn its-btn-primary">
+                    <PlusCircle size={13} />
+                    <span>Connect your first infrastructure</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <>
-                <GisMap
-                  intersections={displayedIntersections}
+                <OperationsMap
+                  data={mapData}
+                  loading={loading && !mapData}
                   selectedId={selectedIntersectionId}
-                  onSelectIntersection={handleSelectIntersection}
+                  onSelectJunction={(id) => {
+                    handleSelectIntersection(id);
+                    setDrawerId(id);
+                  }}
                   height="100%"
                 />
 
@@ -280,10 +318,10 @@ export const Dashboard: React.FC = () => {
                           {selectedIntersectionDetail.name}
                         </div>
                         <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-muted)', fontFamily: 'var(--font-mono)' }}>
-                          CODE: {selectedIntersectionDetail.code || 'N/A'} • {selectedIntersectionDetail.control_type || 'NEMA TS2'}
+                          CODE: {selectedIntersectionDetail.code || 'NOT SET'}
                         </div>
                       </div>
-                      <StatusBadge status={selectedIntersectionDetail.operational_status || 'HEALTHY'} />
+                      <StatusBadge status={selectedIntersectionDetail.operational_status || 'UNKNOWN'} />
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', margin: '10px 0', fontSize: 'var(--text-xs)' }}>
@@ -296,7 +334,11 @@ export const Dashboard: React.FC = () => {
                       <div style={{ background: 'var(--its-bg-subsurface)', padding: '6px 8px', borderRadius: 'var(--radius-sm)' }}>
                         <div style={{ color: 'var(--its-text-muted)', fontSize: '10px', fontWeight: 600 }}>APPROACHES</div>
                         <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--its-text-primary)' }}>
-                          {selectedIntersectionDetail.approaches?.length || 4} LEG JUNCTION
+                          {/* Geometry is only known when approaches were configured.
+                              Defaulting to "4 LEG" described junctions nobody surveyed. */}
+                          {selectedIntersectionDetail.approaches?.length
+                            ? `${selectedIntersectionDetail.approaches.length} LEG JUNCTION`
+                            : 'GEOMETRY NOT CONFIGURED'}
                         </div>
                       </div>
                     </div>
@@ -507,6 +549,19 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {drawerId && (
+        <JunctionDrawer
+          junctionId={drawerId}
+          mapFeature={mapData?.layers.junctions?.features.find((f: any) => f.id === drawerId)}
+          thresholds={mapData?.quality_thresholds_sec}
+          onClose={() => setDrawerId(null)}
+        />
+      )}
+
+      {wizardOpen && (
+        <OnboardingWizard onClose={() => setWizardOpen(false)} onComplete={loadData} />
+      )}
     </div>
   );
 };

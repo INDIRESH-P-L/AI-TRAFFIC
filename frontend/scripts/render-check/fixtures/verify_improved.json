@@ -1,0 +1,43 @@
+{
+ "status": "COMPUTED",
+ "overall_verdict": "IMPROVED",
+ "headline": "1 metric(s) improved beyond the noise; none degraded.",
+ "intersection_name": "Avinashi Rd @ Peelamedu",
+ "before_window": [
+  "2026-09-23T16:00:00",
+  "2026-09-23T16:30:00"
+ ],
+ "after_window": [
+  "2026-09-23T16:32:00",
+  "2026-09-23T17:02:00"
+ ],
+ "before_samples": 10,
+ "after_samples": 10,
+ "comparisons": [
+  {
+   "metric": "avg_wait_time_sec",
+   "label": "Control delay",
+   "unit": "s/veh",
+   "verdict": "IMPROVED",
+   "before_mean": 45.6,
+   "after_mean": 28.6,
+   "difference": -17.0,
+   "confidence_interval": [
+    -18.42,
+    -15.58
+   ],
+   "confidence_level": 0.95,
+   "before_sample_size": 10,
+   "after_sample_size": 10,
+   "minimum_samples_per_side": 8,
+   "lower_is_better": true,
+   "explanation": "The difference of -17.00 has a 95% confidence interval of [-18.42, -15.58], which excludes zero, so the change is larger than the sampling noise."
+  }
+ ],
+ "method": "Welch's unequal-variance t-test with a 95% confidence interval on the difference of means.",
+ "method_caveats": [
+  "Demand is not controlled for: traffic may have changed independently of the signal change.",
+  "This is an observational before/after comparison, not a randomised trial.",
+  "Metrics are compared independently; no correction is applied for multiple comparisons."
+ ]
+}

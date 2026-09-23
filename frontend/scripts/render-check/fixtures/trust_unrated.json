@@ -1,0 +1,63 @@
+{
+ "intersection_id": "3ac6e55b-1f18-4454-ae77-cad3ce5ffdfd",
+ "intersection_name": "Junction 303",
+ "score": null,
+ "band": "UNRATED",
+ "window_minutes": 60,
+ "components": [
+  {
+   "name": "controller_readable",
+   "label": "Controller readability",
+   "weight": 0.3,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No signal controller is configured at this junction.",
+   "observed": {}
+  },
+  {
+   "name": "telemetry_freshness",
+   "label": "Telemetry freshness",
+   "weight": 0.3,
+   "score": null,
+   "status": "NOT_APPLICABLE",
+   "explanation": "No traffic telemetry has ever been recorded for this junction.",
+   "observed": {}
+  },
+  {
+   "name": "detector_health",
+   "label": "Detector health",
+   "weight": 0.2,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No detectors or cameras are configured at this junction.",
+   "observed": {}
+  },
+  {
+   "name": "signal_state_coverage",
+   "label": "Signal state coverage",
+   "weight": 0.1,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No controller is configured, so no signal state can be observed.",
+   "observed": {}
+  },
+  {
+   "name": "sample_density",
+   "label": "Observation density",
+   "weight": 0.1,
+   "score": null,
+   "status": "NOT_CONFIGURED",
+   "explanation": "No detector is configured, so there is no expected observation rate.",
+   "observed": {}
+  }
+ ],
+ "components_scored": 0,
+ "components_not_applicable": 5,
+ "explanation": "Only 0 scorable component(s); 2 are required. This junction is UNRATED rather than scored zero: a score of zero would mean 'measured and bad', and nothing here has been measured. Not assessable: Controller readability, Telemetry freshness, Detector health, Signal state coverage, Observation density.",
+ "ai_gate": {
+  "allowed": false,
+  "threshold": 60.0,
+  "reason": "AI recommendations are withheld for unrated junctions. There is not enough measured data here to assess whether a recommendation would rest on anything."
+ },
+ "computed_at": "2026-09-23T17:34:22.988663+00:00"
+}

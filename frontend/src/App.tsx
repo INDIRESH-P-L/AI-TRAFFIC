@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ConsoleProvider } from './context/ConsoleContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -22,6 +23,13 @@ import { Maintenance } from './pages/Maintenance';
 import { Audit } from './pages/Audit';
 import { Settings } from './pages/Settings';
 import { Users } from './pages/Users';
+import { ProviderHealth } from './pages/ProviderHealth';
+import { AlertRules } from './pages/AlertRules';
+import { Optimizer } from './pages/Optimizer';
+import { Governance } from './pages/Governance';
+import { DataTrust } from './pages/DataTrust';
+import { Stringline } from './pages/Stringline';
+import { ShiftHandover } from './pages/ShiftHandover';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -63,7 +71,9 @@ export const App: React.FC = () => {
             path="/"
             element={
               <ProtectedRoute>
-                <Layout />
+                <ConsoleProvider>
+                  <Layout />
+                </ConsoleProvider>
               </ProtectedRoute>
             }
           >
@@ -87,6 +97,17 @@ export const App: React.FC = () => {
             <Route path="audit" element={<Audit />} />
             <Route path="settings" element={<Settings />} />
             <Route path="users" element={<Users />} />
+
+            {/* Phase 2: backend intelligence surfaces */}
+            <Route path="provider-health" element={<ProviderHealth />} />
+            <Route path="alert-rules" element={<AlertRules />} />
+            <Route path="optimizer" element={<Optimizer />} />
+            <Route path="governance" element={<Governance />} />
+
+            {/* Phase 3: operator insight */}
+            <Route path="data-trust" element={<DataTrust />} />
+            <Route path="stringline" element={<Stringline />} />
+            <Route path="handover" element={<ShiftHandover />} />
           </Route>
 
           {/* Catch-all */}

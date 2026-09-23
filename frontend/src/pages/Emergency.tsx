@@ -15,6 +15,7 @@ export const Emergency: React.FC = () => {
   const [intersectionId, setIntersectionId] = useState('');
   const [targetPhase, setTargetPhase] = useState(2);
   const [submitting, setSubmitting] = useState(false);
+  const [lastVerdict, setLastVerdict] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -43,17 +44,20 @@ export const Emergency: React.FC = () => {
     if (!intersectionId) return;
     setSubmitting(true);
     try {
-      await api.submitPreemption({
+      // The response carries the Deterministic Safety Engine's verdict. A call
+      // that failed validation is recorded as REJECTED, so the operator is
+      // shown the verdict rather than a blanket success message.
+      const result = await api.submitPreemption({
         intersection_id: intersectionId,
         vehicle_id: vehicleId,
         vehicle_type: vehicleType,
         requested_phase: targetPhase,
         source: 'FIRST_RESPONDER_CAD',
       });
+      setLastVerdict(result);
       await loadData();
-      alert('Preemption call dispatched through deterministic clearance validation.');
     } catch (err: any) {
-      alert(`Preemption error: ${err.message}`);
+      setLastVerdict({ status: 'ERROR', error: err.message });
     } finally {
       setSubmitting(false);
     }
@@ -207,6 +211,56 @@ export const Emergency: React.FC = () => {
                 <span>{submitting ? 'Verifying Clearance...' : 'Dispatch Emergency Preemption'}</span>
               </button>
             </div>
+
+            {lastVerdict && (
+              <div
+                role="status"
+                aria-live="polite"
+                style={{
+                  marginTop: '14px',
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: `1px solid ${
+                    lastVerdict.safety_clearance_passed
+                      ? 'var(--its-signal-green-border)'
+                      : 'var(--its-signal-red-border)'
+                  }`,
+                  background: lastVerdict.safety_clearance_passed
+                    ? 'var(--its-signal-green-bg)'
+                    : 'var(--its-signal-red-bg)',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 700,
+                    color: 'var(--its-text-primary)',
+                    marginBottom: lastVerdict.safety_clearance_passed ? 0 : '8px',
+                  }}
+                >
+                  {lastVerdict.status === 'ERROR'
+                    ? `REQUEST FAILED: ${lastVerdict.error}`
+                    : lastVerdict.safety_clearance_passed
+                      ? `PREEMPTION GRANTED — SAFETY ENGINE PASSED (phase ${lastVerdict.requested_phase})`
+                      : 'PREEMPTION REJECTED BY SAFETY ENGINE'}
+                </div>
+
+                {!lastVerdict.safety_clearance_passed && lastVerdict.safety_report?.violations?.length > 0 && (
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', lineHeight: 1.6 }}>
+                    {lastVerdict.safety_report.violations.map((violation: string, i: number) => (
+                      <li key={i}>{violation}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {lastVerdict.safety_report?.checks_performed?.length > 0 && (
+                  <div style={{ marginTop: '8px', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--its-text-muted)' }}>
+                    CHECKS RUN: {lastVerdict.safety_report.checks_performed.join(' • ')}
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         </div>
       )}

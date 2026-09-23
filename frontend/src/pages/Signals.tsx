@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
+import { SignalCommandWorkflow } from '../components/SignalCommandWorkflow';
 import { StatusBadge } from '../components/StatusBadge';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
 import { RingBarrierDiagram } from '../components/RingBarrierDiagram';
@@ -56,30 +57,11 @@ export const Signals: React.FC = () => {
     }
   };
 
-  const handleIssueCommand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCtrl) return;
-    setIssuing(true);
-    setCommandReport(null);
-
-    const idempotencyKey = `cmd_${Date.now()}_${crypto.randomUUID()}`;
-
-    try {
-      const res = await api.issueSignalCommand({
-        controller_id: selectedCtrl.id,
-        requested_phase: targetPhase,
-        command_type: 'PHASE_HOLD',
-        duration_sec: duration,
-        idempotency_key: idempotencyKey,
-      });
-      setCommandReport(res);
-      await loadControllers();
-    } catch (err: any) {
-      alert(`Failed to issue command: ${err.message}`);
-    } finally {
-      setIssuing(false);
-    }
-  };
+  // Commands are never issued straight from this page. Opening the guided
+  // workflow forces the propose -> validate -> confirm sequence, so an
+  // operator always sees the per-rule Safety Engine verdict on real, freshly
+  // read controller state before anything reaches the hardware.
+  const [workflowControllerId, setWorkflowControllerId] = useState<string | null | undefined>(undefined);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -243,135 +225,66 @@ export const Signals: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleIssueCommand} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Operator Identity & Safety Interlock Banner */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: 'rgba(56, 189, 248, 0.08)',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '10px 14px',
-                  fontSize: 'var(--text-xs)',
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--its-border-subtle)',
+                  background: 'var(--its-bg-subsurface)',
+                  fontSize: 'var(--text-2xs)',
+                  color: 'var(--its-text-secondary)',
+                  lineHeight: 1.7,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <UserCheck size={16} color="var(--its-text-cyan)" />
-                  <span>OPERATOR: <b>{user?.username || 'admin'}</b> ({user?.role || 'OPERATOR'})</span>
+                <div style={{ fontWeight: 700, color: 'var(--its-text-primary)', marginBottom: '5px' }}>
+                  GUIDED COMMAND WORKFLOW
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontFamily: 'var(--font-mono)' }}>
-                  <ShieldCheck size={14} />
-                  <span>SAFETY INTERLOCK: ACTIVE</span>
-                </div>
+                Signal changes go through a four-step flow: propose, validate against the
+                Deterministic Safety Engine on freshly read controller state, confirm, then
+                audit. The validation step shows every rule with its own pass or fail and a
+                plain-language explanation, and writes nothing.
               </div>
 
-              {/* Side-by-Side State Diff */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '12px', alignItems: 'center' }}>
-                {/* Current State */}
-                <div style={{ background: 'var(--its-bg-subsurface)', border: '1px solid var(--its-border-subtle)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-                  <div className="metric-label">CURRENT PHASE</div>
-                  <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: '#34d399', fontFamily: 'var(--font-mono)' }}>
-                    Φ{selectedCtrl.active_phase || 2}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--its-text-muted)', marginTop: '2px' }}>
-                    Holding Normal Cycle
-                  </div>
-                </div>
-
-                <ArrowRight size={20} color="var(--its-text-muted)" />
-
-                {/* Requested State */}
-                <div style={{ background: 'var(--its-bg-subsurface)', border: '1px solid var(--its-border-accent)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
-                  <div className="metric-label" style={{ color: 'var(--its-text-cyan)' }}>REQUESTED PHASE</div>
-                  <div style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-                    Φ{targetPhase}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--its-text-muted)', marginTop: '2px' }}>
-                    Hold Duration: {duration}s
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Controls */}
-              <div className="grid-2">
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--text-2xs)', color: 'var(--its-text-secondary)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                    Select Target Phase
-                  </label>
-                  <select
-                    className="its-select"
-                    value={targetPhase}
-                    onChange={(e) => setTargetPhase(parseInt(e.target.value, 10))}
-                  >
-                    {selectedCtrl.phases?.map((p: any) => (
-                      <option key={p.phase_number} value={p.phase_number}>
-                        Phase {p.phase_number}: {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--text-2xs)', color: 'var(--its-text-secondary)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                    Hold Duration (Seconds)
-                  </label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="120"
-                    className="its-input"
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Safety Engine Report Output */}
-              {commandReport && (
+              {selectedCtrl && selectedCtrl.connection_status !== 'CONNECTED' && (
                 <div
                   style={{
-                    padding: '12px',
+                    padding: '10px 12px',
                     borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${commandReport.safety_check_passed ? 'var(--its-signal-green-border)' : 'var(--its-signal-red-border)'}`,
-                    background: commandReport.safety_check_passed ? 'var(--its-signal-green-bg)' : 'var(--its-signal-red-bg)',
+                    border: '1px solid var(--its-signal-yellow-border)',
+                    background: 'var(--its-signal-yellow-bg)',
+                    fontSize: 'var(--text-2xs)',
+                    lineHeight: 1.6,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: 'var(--text-xs)', color: commandReport.safety_check_passed ? '#34d399' : '#f87171' }}>
-                    {commandReport.safety_check_passed ? <ShieldCheck size={16} /> : <ShieldAlert size={16} />}
-                    <span>SAFETY VERIFICATION: {commandReport.status}</span>
-                  </div>
-
-                  {!commandReport.safety_check_passed && commandReport.safety_report?.violations?.length > 0 && (
-                    <ul style={{ marginTop: '8px', paddingLeft: '20px', fontSize: 'var(--text-xs)', color: '#f87171' }}>
-                      {commandReport.safety_report.violations.map((v: string, idx: number) => (
-                        <li key={idx}>{v}</li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {commandReport.safety_check_passed && (
-                    <div style={{ marginTop: '4px', fontSize: 'var(--text-xs)', color: '#34d399' }}>
-                      Deterministic check passed. Command dispatched to physical socket at {commandReport.acknowledged_at}.
-                    </div>
-                  )}
+                  <strong>{selectedCtrl.name}</strong> is {selectedCtrl.connection_status}. The
+                  Safety Engine refuses commands to hardware whose phase state cannot be read;
+                  the validation step will show exactly which rule stops it.
                 </div>
               )}
 
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setSelectedCtrl(null)} className="its-btn">
-                  Cancel
-                </button>
-                <button type="submit" className="its-btn its-btn-primary" disabled={issuing}>
-                  {issuing ? 'Validating NEMA Safety...' : 'Confirm & Execute Command'}
-                </button>
-              </div>
-            </form>
+              <button
+                type="button"
+                onClick={() => setWorkflowControllerId(selectedCtrl?.id ?? null)}
+                className="its-btn its-btn-primary"
+                disabled={!selectedCtrl}
+                style={{ justifyContent: 'center' }}
+              >
+                <ShieldCheck size={14} />
+                <span>Open guided command workflow</span>
+              </button>
+            </div>
           </div>
         </div>
+      )}
+
+      {workflowControllerId !== undefined && (
+        <SignalCommandWorkflow
+          controllers={controllers}
+          preselectedControllerId={workflowControllerId}
+          onClose={() => setWorkflowControllerId(undefined)}
+          onExecuted={loadControllers}
+        />
       )}
     </div>
   );

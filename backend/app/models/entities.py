@@ -57,6 +57,14 @@ class AuditLog(Base):
     request_id = Column(String(64), nullable=True)
     timestamp = Column(DateTime, default=utc_now, index=True)
 
+    # --- Tamper-evident hash chain --------------------------------------
+    # entry_hash = SHA256(sequence || previous_hash || canonical_json(entry)).
+    # Altering or deleting a historical row breaks the chain from that point
+    # on, and /audit/verify reports which sequence number broke.
+    sequence = Column(Integer, nullable=True, unique=True, index=True)
+    previous_hash = Column(String(64), nullable=True)
+    entry_hash = Column(String(64), nullable=True, index=True)
+
     user = relationship("User", back_populates="audit_logs")
 
 
@@ -145,6 +153,11 @@ class SignalController(Base):
     control_mode = Column(String(32), default="LOCAL_COORDINATED")    # LOCAL_COORDINATED, ADAPTIVE_REMOTE, MANUAL_HOLD, FLASH
     active_phase = Column(Integer, nullable=True)
     current_phase_start = Column(DateTime, nullable=True)
+    # Phases observed in yellow change or all-red clearance at the last read.
+    # No phase displays green during clearance, so active_phase is null then -
+    # without this, a conflicting movement would pass the conflict check while
+    # the opposing approach is still clearing the intersection.
+    clearing_phases = Column(JSON, nullable=True)
     cycle_length = Column(Integer, default=90)
     last_heartbeat = Column(DateTime, nullable=True)
     fallback_mode = Column(String(64), default="CONFIGURED_LOCAL_PLAN")
@@ -322,6 +335,9 @@ class TrafficMetric(Base):
     queue_length_meters = Column(Float, nullable=True)
     avg_wait_time_sec = Column(Float, nullable=True)
     traffic_pressure = Column(Float, nullable=True)
+    # Observation window the flow rate was extrapolated from. Null means the
+    # window was not recorded, and flow_rate_vph must not be trusted.
+    sample_window_sec = Column(Float, nullable=True)
     data_quality = Column(String(32), default="NO_DATA")  # FRESH, AGING, STALE, NO_DATA
     calculation_method = Column(String(64), nullable=False)
     provenance = Column(JSON, nullable=True)
@@ -351,6 +367,21 @@ class Incident(Base):
     evidence = Column(JSON, nullable=True)
     operator_notes = Column(Text, nullable=True)
 
+    # --- Triage & assignment --------------------------------------------
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by = Column(String(64), nullable=True)
+    assigned_to = Column(String(64), nullable=True)
+    assigned_at = Column(DateTime, nullable=True)
+
+    # --- SLA -------------------------------------------------------------
+    #: Targets in seconds, copied from policy when the incident is created so
+    #: a later policy change does not retroactively rewrite whether a past
+    #: incident met its target.
+    sla_acknowledge_sec = Column(Integer, nullable=True)
+    sla_resolve_sec = Column(Integer, nullable=True)
+    sla_acknowledge_breached = Column(Boolean, default=False, nullable=False)
+    sla_resolve_breached = Column(Boolean, default=False, nullable=False)
+
     intersection = relationship("Intersection", back_populates="incidents")
 
 
@@ -366,6 +397,7 @@ class EmergencyEvent(Base):
     timestamp = Column(DateTime, default=utc_now)
     requested_phase = Column(Integer, nullable=True)
     safety_clearance_passed = Column(Boolean, default=False)
+    safety_report = Column(JSON, nullable=True)  # Full DeterministicSafetyEngine verdict
     source = Column(String(64), nullable=False)
 
 
@@ -455,6 +487,20 @@ class Alert(Base):
     acknowledged_at = Column(DateTime, nullable=True)
     timestamp = Column(DateTime, default=utc_now, index=True)
 
+    # --- Rules engine linkage -------------------------------------------
+    rule_id = Column(String(36), nullable=True, index=True)
+    #: Stable key identifying "the same alert" for dedupe: rule + subject.
+    dedupe_key = Column(String(160), nullable=True, index=True)
+    #: The measured values that caused this alert - provenance for the alert
+    #: itself, so an operator can see what the rule actually saw.
+    observed = Column(JSON, nullable=True)
+    #: Incremented instead of creating a duplicate row while in cooldown.
+    occurrence_count = Column(Integer, default=1, nullable=False)
+    last_occurrence_at = Column(DateTime, default=utc_now)
+    escalated = Column(Boolean, default=False, nullable=False)
+    escalated_at = Column(DateTime, nullable=True)
+    original_severity = Column(String(32), nullable=True)
+
 
 class MaintenanceEvent(Base):
     __tablename__ = "maintenance_events"
@@ -497,3 +543,380 @@ class KnowledgeChunk(Base):
     metadata_json = Column(JSON, nullable=True)
 
     document = relationship("KnowledgeDocument", back_populates="chunks")
+
+
+# ==========================================
+# 12. Alert Rules Engine
+# ==========================================
+
+class AlertRule(Base):
+    """An operator-defined condition evaluated against real stored state.
+
+    Rules never invent inputs: a rule whose subject has reported nothing
+    evaluates to INSUFFICIENT_DATA, not to false.
+    """
+
+    __tablename__ = "alert_rules"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(128), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    #: Condition type, e.g. DETECTOR_SILENT, OCCUPANCY_SUSTAINED,
+    #: CONTROLLER_STATE, PROVIDER_DEGRADED, COMMAND_REJECTED.
+    condition_type = Column(String(48), nullable=False, index=True)
+    #: Typed parameters for the condition (thresholds, durations, targets).
+    parameters = Column(JSON, nullable=False, default=dict)
+    #: Optional scope: evaluate only for this intersection.
+    intersection_id = Column(String(36), nullable=True, index=True)
+
+    severity = Column(String(32), default="WARNING", nullable=False)  # INFO, WARNING, CRITICAL
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    #: Seconds before the same rule+subject may fire again.
+    cooldown_sec = Column(Integer, default=300, nullable=False)
+    #: Seconds an unacknowledged alert waits before escalating.
+    escalate_after_sec = Column(Integer, nullable=True)
+    escalate_to_severity = Column(String(32), nullable=True)
+
+    #: Delivery channels: ["UI"], ["UI", "WEBHOOK"], ["UI", "EMAIL"], ...
+    delivery_channels = Column(JSON, default=lambda: ["UI"])
+    webhook_url = Column(String(512), nullable=True)
+    email_to = Column(String(512), nullable=True)
+
+    created_by = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    last_evaluated_at = Column(DateTime, nullable=True)
+    last_fired_at = Column(DateTime, nullable=True)
+    fire_count = Column(Integer, default=0, nullable=False)
+
+
+class RuleEvaluation(Base):
+    """One evaluation of one rule, kept so a firing can be explained."""
+
+    __tablename__ = "rule_evaluations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    rule_id = Column(String(36), ForeignKey("alert_rules.id"), nullable=False, index=True)
+    subject_type = Column(String(48), nullable=False)   # Sensor, SignalController, Provider
+    subject_id = Column(String(64), nullable=True)
+    #: MATCHED, NOT_MATCHED, INSUFFICIENT_DATA, SUPPRESSED_COOLDOWN, SUPPRESSED_DUPLICATE
+    outcome = Column(String(32), nullable=False, index=True)
+    #: The measured values the outcome rests on.
+    observed = Column(JSON, nullable=True)
+    explanation = Column(Text, nullable=True)
+    alert_id = Column(String(36), nullable=True)
+    evaluated_at = Column(DateTime, default=utc_now, index=True)
+
+
+class AlertDelivery(Base):
+    """One delivery attempt of one alert to one channel."""
+
+    __tablename__ = "alert_deliveries"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    alert_id = Column(String(36), nullable=False, index=True)
+    channel = Column(String(32), nullable=False)        # UI, WEBHOOK, EMAIL
+    target = Column(String(512), nullable=True)
+    status = Column(String(32), nullable=False)          # DELIVERED, FAILED, SKIPPED_NOT_CONFIGURED
+    detail = Column(Text, nullable=True)
+    attempted_at = Column(DateTime, default=utc_now, index=True)
+
+
+# ==========================================
+# 13. Observed Signal State History
+# ==========================================
+
+class SignalStateLog(Base):
+    """One observed reading of a controller's phase state.
+
+    Written on every successful controller poll. This is the raw material for
+    every signal performance measure the platform reports: arrival-on-green,
+    split failures, progression and the corridor time-space diagram all need to
+    know which phase was green at a given instant, and none of them can be
+    computed from a current-state snapshot.
+
+    Rows are observations, never predictions: a gap in this table is a period
+    the platform genuinely did not observe, and the analytics treat it as such
+    rather than assuming the signal carried on cycling.
+    """
+
+    __tablename__ = "signal_state_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    controller_id = Column(String(36), nullable=False, index=True)
+    intersection_id = Column(String(36), nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+
+    green_phases = Column(JSON, nullable=True)     # list[int]
+    yellow_phases = Column(JSON, nullable=True)    # list[int]
+    red_phases = Column(JSON, nullable=True)       # list[int]
+
+    #: How the reading was obtained, e.g. NTCIP_1202_POLL.
+    source = Column(String(64), nullable=False)
+    read_latency_ms = Column(Float, nullable=True)
+
+
+# ==========================================
+# 14. Scenario Sandbox (HYPOTHETICAL ONLY)
+# ==========================================
+
+class ScenarioRun(Base):
+    """A hypothetical timing scenario. NEVER observed data.
+
+    This table is deliberately separate from `traffic_metrics` rather than a
+    flag on it. A flag is one forgotten WHERE clause away from a hypothetical
+    number appearing on the operations map as a measurement; a separate table
+    with different column names cannot be mixed in by accident.
+
+    Nothing in the platform reads this table except the scenario endpoints.
+    """
+
+    __tablename__ = "scenario_runs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    intersection_id = Column(String(36), nullable=True, index=True)
+    label = Column(String(128), nullable=False)
+    operator = Column(String(64), nullable=False)
+
+    #: Volumes and geometry the operator entered. Never generated.
+    input_movements = Column(JSON, nullable=False)
+
+    scenario_cycle_length_sec = Column(Integer, nullable=True)
+    scenario_splits = Column(JSON, nullable=True)
+    scenario_expected_delay = Column(JSON, nullable=True)
+    calculation_trace = Column(JSON, nullable=True)
+
+    status = Column(String(32), nullable=False)          # COMPUTED, REFUSED
+    refusal_reason = Column(String(64), nullable=True)
+
+    #: Real measured comparison, or an explicit insufficiency.
+    measured_baseline = Column(JSON, nullable=True)
+    comparison = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime, default=utc_now, index=True)
+
+
+class OptimizerRecommendation(Base):
+    """An optimiser proposal produced from real or operator-entered demand.
+
+    Distinct from ScenarioRun: a recommendation is intended to be acted on and
+    therefore carries a Safety Engine verdict. A scenario is never actionable.
+    """
+
+    __tablename__ = "optimizer_recommendations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    intersection_id = Column(String(36), nullable=False, index=True)
+    controller_id = Column(String(36), nullable=True)
+    method_version = Column(String(48), nullable=False)
+
+    #: Where the demand came from: MEASURED_DETECTOR or OPERATOR_ENTERED.
+    demand_source = Column(String(48), nullable=False)
+    inputs = Column(JSON, nullable=False)
+    #: Inputs the method expects that were not available.
+    missing_inputs = Column(JSON, nullable=True)
+
+    status = Column(String(32), nullable=False)          # COMPUTED, REFUSED
+    refusal_reason = Column(String(64), nullable=True)
+    proposed_cycle_length_sec = Column(Integer, nullable=True)
+    proposed_splits = Column(JSON, nullable=True)
+    expected_delay = Column(JSON, nullable=True)
+    calculation_trace = Column(JSON, nullable=True)
+
+    #: Full DeterministicSafetyEngine verdict on the proposal.
+    safety_verdict = Column(JSON, nullable=True)
+    safety_passed = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime, default=utc_now, index=True)
+    created_by = Column(String(64), nullable=True)
+
+
+# ==========================================
+# 15. API Keys (machine callers)
+# ==========================================
+
+class ApiKey(Base):
+    """A scoped credential for machine callers.
+
+    Only a SHA-256 hash of the key is stored: a database disclosure does not
+    hand over working credentials. The plaintext exists exactly once, in the
+    creation response.
+    """
+
+    __tablename__ = "api_keys"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(128), nullable=False)
+    key_hash = Column(String(64), nullable=False, unique=True, index=True)
+    #: Leading characters, so a key is recognisable in a list without being
+    #: recoverable from it.
+    key_prefix = Column(String(24), nullable=False)
+    scopes = Column(JSON, nullable=False, default=list)
+
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(String(64), nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    use_count = Column(Integer, default=0, nullable=False)
+
+
+# ==========================================
+# 16. Incident Timeline & Evidence
+# ==========================================
+
+class IncidentTimelineEntry(Base):
+    """One append-only entry in an incident's history.
+
+    Append-only by convention and by API: there is no update or delete path.
+    An incident review is worthless if the timeline can be edited afterwards,
+    so a correction is a new entry that references the one it corrects.
+    """
+
+    __tablename__ = "incident_timeline"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    incident_id = Column(String(36), ForeignKey("incidents.id"), nullable=False, index=True)
+    #: STATUS_CHANGE, NOTE, ASSIGNMENT, EVIDENCE_ATTACHED, SLA_BREACH, CORRECTION
+    entry_type = Column(String(32), nullable=False, index=True)
+    actor = Column(String(64), nullable=False)
+    summary = Column(String(255), nullable=False)
+    detail = Column(Text, nullable=True)
+    #: Machine-readable context: from/to status, sla seconds, evidence id.
+    context = Column(JSON, nullable=True)
+    #: When this entry corrects an earlier one.
+    corrects_entry_id = Column(String(36), nullable=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
+
+
+class IncidentEvidence(Base):
+    """A real artefact attached to an incident.
+
+    Only references to things the platform actually recorded: a camera frame
+    it ingested, a sensor observation it stored, a signal command it issued.
+    There is no free-form upload path, because an "evidence" item nobody can
+    trace back to a recorded observation is an assertion, not evidence.
+    """
+
+    __tablename__ = "incident_evidence"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    incident_id = Column(String(36), ForeignKey("incidents.id"), nullable=False, index=True)
+    #: CAMERA_FRAME, SENSOR_OBSERVATION, TRAFFIC_METRIC, SIGNAL_COMMAND, SIGNAL_STATE
+    evidence_type = Column(String(32), nullable=False)
+    #: The table and row this evidence points at.
+    source_table = Column(String(64), nullable=False)
+    source_id = Column(String(64), nullable=False)
+    #: Snapshot of the referenced record at attachment time, so the evidence
+    #: survives even if the source row is later pruned by retention.
+    snapshot = Column(JSON, nullable=False)
+    observed_at = Column(DateTime, nullable=True)
+    attached_by = Column(String(64), nullable=False)
+    attached_at = Column(DateTime, default=utc_now, index=True)
+    note = Column(Text, nullable=True)
+
+
+# ==========================================
+# 17. Operator Shift Handover
+# ==========================================
+
+class ShiftHandover(Base):
+    """A shift handover record: auto-generated, edited, then signed off.
+
+    The generated snapshot is kept separately from the operator's notes and is
+    never overwritten by editing. A handover is the document the next shift
+    relies on, and being able to see what the platform reported alongside what
+    the operator added is the difference between a record and a summary.
+
+    Once signed off, the record is immutable by API: a handover that can be
+    revised after the fact cannot be relied on by the shift that read it.
+    """
+
+    __tablename__ = "shift_handovers"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+
+    #: Shift boundaries the handover covers.
+    shift_start = Column(DateTime, nullable=False)
+    shift_end = Column(DateTime, nullable=False)
+
+    outgoing_operator = Column(String(64), nullable=False)
+    incoming_operator = Column(String(64), nullable=True)
+
+    #: What the platform reported at generation time. Never edited.
+    generated_snapshot = Column(JSON, nullable=False)
+    generated_at = Column(DateTime, default=utc_now, nullable=False)
+
+    #: What the operator added. Edited freely until sign-off.
+    operator_notes = Column(Text, nullable=True)
+    #: Items the outgoing operator flags for the incoming one.
+    pending_actions = Column(JSON, default=list)
+
+    status = Column(String(32), default="DRAFT", nullable=False)  # DRAFT, SIGNED_OFF
+    signed_off_at = Column(DateTime, nullable=True)
+    signed_off_by = Column(String(64), nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by = Column(String(64), nullable=True)
+
+
+class PollerLease(Base):
+    """Single-writer lease for the controller poller.
+
+    The poller runs in-process, so two API replicas would otherwise both poll
+    every controller and write two `signal_state_logs` rows per observation -
+    silently doubling every measure derived from that log. A doubled
+    measurement is worse than an outage: an outage is visible, while a doubled
+    throughput just looks like a busy junction.
+
+    The row is inspectable on purpose. An operator needs to be able to see
+    which instance is doing the writing, and a lease that expires on a
+    heartbeat recovers by itself when its holder dies, which a lock held by a
+    wedged process does not.
+    """
+
+    __tablename__ = "poller_leases"
+
+    #: Lease name, not a surrogate key: there is one lease per named job, and
+    #: the uniqueness constraint is what makes the election correct.
+    name = Column(String(64), primary_key=True)
+
+    #: host:pid:random of the instance currently holding the lease.
+    holder_id = Column(String(128), nullable=False)
+
+    acquired_at = Column(DateTime, nullable=False, default=utc_now)
+    heartbeat_at = Column(DateTime, nullable=False, default=utc_now)
+
+
+# ==========================================
+# Audit ledger chaining
+# ==========================================
+#
+# Registered here, at model-import time, rather than during application
+# startup. An audit row written by a script, a migration helper or a test
+# would otherwise be left unchained, and an unchained row is a silent gap in
+# a ledger whose whole purpose is that gaps are not silent.
+#
+# The hashing itself is imported lazily inside the handler to avoid a circular
+# import (ledger -> entities -> database).
+
+def _install_audit_chaining() -> None:
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session as _Session
+
+    if getattr(_install_audit_chaining, "_installed", False):
+        return
+
+    @event.listens_for(_Session, "before_flush")
+    def _chain_audit_entries(session, _flush_context, _instances):  # noqa: ANN001
+        if not any(isinstance(obj, AuditLog) for obj in session.new):
+            return
+        from app.governance.ledger import stamp_pending_entries
+        stamp_pending_entries(session)
+
+    _install_audit_chaining._installed = True
+
+
+_install_audit_chaining()

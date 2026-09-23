@@ -18,6 +18,9 @@ interface ChatMessage {
   grounding?: string[];
   citations?: any[];
   timestamp: string;
+  grounded?: boolean;
+  reasoningMode?: string;
+  modeNote?: string;
 }
 
 export const AiCopilot: React.FC = () => {
@@ -73,13 +76,20 @@ export const AiCopilot: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await api.queryCopilot(queryText);
+      // Copilot 2.0: plans tool calls, answers only from what they return, and
+      // attaches a citation to every claim.
+      const res = await api.askCopilot(queryText);
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: res.answer,
         telemetryState: res.telemetry_state,
-        grounding: res.grounding_data_used,
+        grounding: (res.tools_called ?? []).map(
+          (call: any) => `${call.tool} -> ${call.status}${call.reason ? ` (${call.reason})` : ''}`,
+        ),
         citations: res.citations,
+        grounded: res.grounded,
+        reasoningMode: res.reasoning_mode,
+        modeNote: res.mode_note,
         timestamp: new Date().toLocaleTimeString(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -100,10 +110,10 @@ export const AiCopilot: React.FC = () => {
   };
 
   const sampleQueries = [
+    'Which providers are degraded?',
+    'Are there any open incidents?',
+    'Were any signal commands rejected recently?',
     'What are the MUTCD minimum green requirements for arterial thru phases?',
-    'Explain the NEMA TS 2 dual-ring barrier safety interlock.',
-    'Summarize current system infrastructure health.',
-    'What is the formula for yellow change clearance time under ITE guidelines?',
   ];
 
   return (

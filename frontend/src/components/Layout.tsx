@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
   Map,
@@ -16,24 +16,60 @@ import {
   Bell,
   Clock,
   ShieldCheck,
-  Layers
+  Layers,
+  Keyboard,
+  Moon,
+  Sun,
+  Rows3,
+  MonitorPlay,
+  Calculator,
+  BellRing,
+  HeartPulse,
+  ScrollText,
+  Gauge,
+  Waves,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useConsole } from '../context/ConsoleContext';
 import { CommandPalette } from './CommandPalette';
-import { AlertDrawer } from './AlertDrawer';
+import { NotificationCenter, ToastStack } from './NotificationCenter';
+import { ShortcutsSheet } from './ShortcutsSheet';
+import { SignalCommandWorkflow } from './SignalCommandWorkflow';
+import { OnboardingWizard } from './OnboardingWizard';
 import { api } from '../api/client';
+import { formatAge } from '../lib/quality';
+import { useTickingAge } from '../hooks/useTickingAge';
 
 export const Layout: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [wsConnected, setWsConnected] = useState(false);
+  const navigate = useNavigate();
+  const {
+    connection, lastEventAt, unreadCount, notify, droppedEvents,
+    theme, setTheme, density, setDensity, wallboard, setWallboard,
+  } = useConsole();
+
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('toc_sidebar_collapsed') === 'true';
+    try {
+      return localStorage.getItem('toc_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
   });
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  const [isAlertDrawerOpen, setIsAlertDrawerOpen] = useState(false);
-  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [commandControllerId, setCommandControllerId] = useState<string | null | undefined>(undefined);
+  const [controllers, setControllers] = useState<any[]>([]);
+  const [openIncidentCount, setOpenIncidentCount] = useState(0);
   const [utcTime, setUtcTime] = useState('');
+  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
+
+  const wsConnected = connection === 'CONNECTED';
+  const lastEventAge = useTickingAge(lastEventAt);
 
   // Update live UTC time clock every second
   useEffect(() => {
@@ -48,49 +84,33 @@ export const Layout: React.FC = () => {
 
   // Check alert count on initial load and periodically
   useEffect(() => {
-    const fetchAlertCount = () => {
+    const fetchStatus = () => {
       api.getDashboardSummary()
         .then(summary => {
-          const alerts = summary.alerts?.unacknowledged_count || 0;
-          const incidents = summary.incidents?.active_count || 0;
-          setUnreadAlertCount(alerts + incidents);
+          setOpenIncidentCount(
+            (summary.alerts?.unacknowledged_count || 0) + (summary.incidents?.active_count || 0),
+          );
+          setApiReachable(true);
         })
-        .catch(() => {});
+        .catch(() => setApiReachable(false));
+
+      api.getSystemStatus()
+        .then(status => setSystemStatus(status))
+        .catch(() => setSystemStatus(null));
+
+      api.getControllers()
+        .then(list => setControllers(list))
+        .catch(() => setControllers([]));
     };
-    fetchAlertCount();
-    const interval = setInterval(fetchAlertCount, 15000);
+    fetchStatus();
+    // Backstop poll only. Live updates arrive over the event stream; this
+    // catches state that changed while the socket was down.
+    const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Connect to real WebSocket gateway
-  useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`;
-    let socket: WebSocket | null = null;
-
-    try {
-      socket = new WebSocket(wsUrl);
-      socket.onopen = () => setWsConnected(true);
-      socket.onclose = () => setWsConnected(false);
-      socket.onerror = () => setWsConnected(false);
-      socket.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.type === 'incident.detected' || payload.type === 'safety.alarm') {
-            setUnreadAlertCount(prev => prev + 1);
-          }
-        } catch {
-          // ignore parsing error
-        }
-      };
-    } catch {
-      setWsConnected(false);
-    }
-
-    return () => {
-      if (socket) socket.close();
-    };
-  }, []);
+  // The real-time stream lives in ConsoleContext so every page shares one
+  // socket. Layout only renders its health.
 
   // Toggle sidebar collapse
   const toggleSidebar = () => {
@@ -101,20 +121,75 @@ export const Layout: React.FC = () => {
     });
   };
 
-  // Keyboard shortcut Ctrl+K or / for command palette
+  // Keyboard shortcuts. Every binding here is listed in the "?" sheet.
+  const pendingChord = useRef<string | null>(null);
+
   useEffect(() => {
+    const isTyping = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+        (el as HTMLElement).isContentEditable;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      // Ctrl/Cmd+K works even inside a field; everything else defers to typing.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsPaletteOpen(prev => !prev);
-      } else if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-        e.preventDefault();
-        setIsPaletteOpen(true);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey || isTyping()) return;
+
+      // Two-key 'g' chords for navigation.
+      if (pendingChord.current === 'g') {
+        pendingChord.current = null;
+        const destinations: Record<string, string> = {
+          d: '/dashboard', m: '/live-map', i: '/incidents', s: '/settings',
+        };
+        const path = destinations[e.key.toLowerCase()];
+        if (path) {
+          e.preventDefault();
+          navigate(path);
+        }
+        return;
+      }
+
+      switch (e.key) {
+        case 'g':
+          pendingChord.current = 'g';
+          // A chord that is never completed must not swallow the next keypress.
+          setTimeout(() => { pendingChord.current = null; }, 1200);
+          break;
+        case '/':
+          e.preventDefault();
+          setIsPaletteOpen(true);
+          break;
+        case '?':
+          e.preventDefault();
+          setIsShortcutsOpen(prev => !prev);
+          break;
+        case 't':
+          setTheme(theme === 'dark' ? 'light' : 'dark');
+          break;
+        case 'd':
+          setDensity(density === 'compact' ? 'comfortable' : 'compact');
+          break;
+        case 'w':
+          setWallboard(!wallboard);
+          break;
+        case 'n':
+          setIsNotificationsOpen(prev => !prev);
+          break;
+        default:
+          break;
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [navigate, theme, setTheme, density, setDensity, wallboard, setWallboard]);
 
   // Map route to title & section
   const getPageMeta = (pathname: string) => {
@@ -136,10 +211,21 @@ export const Layout: React.FC = () => {
     if (pathname.startsWith('/audit')) return { title: 'Tamper-Evident Security & Audit Trail', section: 'GOVERNANCE' };
     if (pathname.startsWith('/settings')) return { title: 'System Configuration & Hardware Wizards', section: 'INFRASTRUCTURE' };
     if (pathname.startsWith('/users')) return { title: 'Operator Access Control & RBAC', section: 'GOVERNANCE' };
+    if (pathname.startsWith('/provider-health')) return { title: 'Provider Health & Stream Diagnostics', section: 'INFRASTRUCTURE' };
+    if (pathname.startsWith('/alert-rules')) return { title: 'Alert & Rules Engine', section: 'INTELLIGENCE' };
+    if (pathname.startsWith('/optimizer')) return { title: 'Signal Timing Optimiser & Scenario Sandbox', section: 'INTELLIGENCE' };
+    if (pathname.startsWith('/governance')) return { title: 'Audit Ledger, Access Model & API Keys', section: 'GOVERNANCE' };
+    if (pathname.startsWith('/data-trust')) return { title: 'Data Trust & Change Verification', section: 'INTELLIGENCE' };
+    if (pathname.startsWith('/stringline')) return { title: 'Corridor Stringline (Time-Space Diagram)', section: 'INTELLIGENCE' };
+    if (pathname.startsWith('/handover')) return { title: 'Shift Handover', section: 'OPERATIONS' };
     return { title: 'Traffic Operations Platform', section: 'TOC OPERATIONS' };
   };
 
   const pageMeta = getPageMeta(location.pathname);
+
+  const dbStatus: string | null = systemStatus?.subsystems?.database?.status ?? null;
+  const dbDialect: string | null = systemStatus?.subsystems?.database?.dialect ?? null;
+  const schemaCurrent: boolean | null = systemStatus?.subsystems?.database?.schema_current ?? null;
 
   return (
     <div className="app-container">
@@ -184,10 +270,30 @@ export const Layout: React.FC = () => {
           <NavLink to="/incidents" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Incident Console">
             <AlertTriangle size={16} />
             <span>Incident Console</span>
-            {unreadAlertCount > 0 && <span className="nav-badge">{unreadAlertCount}</span>}
+            {openIncidentCount > 0 && <span className="nav-badge">{openIncidentCount}</span>}
+          </NavLink>
+          <NavLink to="/handover" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Shift handover record">
+            <ClipboardList size={16} />
+            <span>Shift Handover</span>
           </NavLink>
 
           <div className="nav-group-title">Intelligence & Ops</div>
+          <NavLink to="/optimizer" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Signal timing optimiser & scenario sandbox">
+            <Calculator size={16} />
+            <span>Timing & Scenarios</span>
+          </NavLink>
+          <NavLink to="/alert-rules" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Alert & rules engine">
+            <BellRing size={16} />
+            <span>Alert Rules</span>
+          </NavLink>
+          <NavLink to="/data-trust" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Data trust score & post-change verification">
+            <Gauge size={16} />
+            <span>Data Trust</span>
+          </NavLink>
+          <NavLink to="/stringline" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Corridor time-space diagram from observed signal state">
+            <Waves size={16} />
+            <span>Corridor Stringline</span>
+          </NavLink>
           <NavLink to="/ai-copilot" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="AI Operations Copilot">
             <Bot size={16} />
             <span>AI Traffic Copilot</span>
@@ -195,6 +301,16 @@ export const Layout: React.FC = () => {
           <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="System Settings & Health">
             <Settings size={16} />
             <span>Settings & Health</span>
+          </NavLink>
+
+          <div className="nav-group-title">Infrastructure & Governance</div>
+          <NavLink to="/provider-health" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Provider health & stream diagnostics">
+            <HeartPulse size={16} />
+            <span>Provider Health</span>
+          </NavLink>
+          <NavLink to="/governance" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Audit ledger, access model & API keys">
+            <ScrollText size={16} />
+            <span>Audit & Access</span>
           </NavLink>
         </nav>
 
@@ -241,7 +357,9 @@ export const Layout: React.FC = () => {
 
           {/* Right: Telemetry Streams, Alerts, Safety State */}
           <div className="topbar-right">
-            {/* WebSocket Indicator */}
+            {/* Stream health. An open socket is not the same claim as live
+                data, so the badge reports the socket state and the age of the
+                last real event separately. */}
             <div
               style={{
                 display: 'flex',
@@ -253,15 +371,28 @@ export const Layout: React.FC = () => {
                 borderRadius: 'var(--radius-sm)',
                 background: wsConnected ? 'var(--its-signal-green-bg)' : 'var(--its-stale-bg)',
                 border: `1px solid ${wsConnected ? 'var(--its-signal-green-border)' : 'var(--its-border-subtle)'}`,
-                color: wsConnected ? '#34d399' : 'var(--its-text-muted)'
+                color: wsConnected ? 'var(--its-signal-green)' : 'var(--its-text-muted)'
               }}
-              title={wsConnected ? 'Real-time WebSocket Gateway Connected' : 'WebSocket Gateway Disconnected'}
+              title={
+                wsConnected
+                  ? lastEventAt
+                    ? `Event stream connected. Last event ${formatAge(lastEventAge)} ago.`
+                    : 'Event stream connected. No events received this session - a quiet network produces no events.'
+                  : `Event stream ${connection.toLowerCase()}.`
+              }
             >
               {wsConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
-              <span>{wsConnected ? 'LIVE FEED' : 'OFFLINE'}</span>
+              <span>
+                {connection === 'CONNECTED'
+                  ? lastEventAt ? `LIVE - ${formatAge(lastEventAge)}` : 'CONNECTED - QUIET'
+                  : connection}
+              </span>
             </div>
 
-            {/* Safety Engine Badge */}
+            {/* Safety engine: an architectural property, not a liveness reading.
+                Every signal command and preemption call is validated before it
+                can reach a controller adapter, so this is stated as a routing
+                fact rather than dressed up as a monitored green light. */}
             <div
               style={{
                 display: 'flex',
@@ -272,24 +403,71 @@ export const Layout: React.FC = () => {
                 fontWeight: 600,
                 padding: '4px 8px',
                 borderRadius: 'var(--radius-sm)',
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                color: '#38bdf8'
+                background: 'var(--its-bg-subsurface)',
+                border: '1px solid var(--its-border-default)',
+                color: 'var(--its-text-secondary)'
               }}
-              title="Deterministic NEMA TS2 Dual-Ring Barrier Conflict Interlock"
+              title="All signal commands and preemption calls are validated by the Deterministic Safety Engine (NEMA TS2 dual-ring conflict matrix, minimum green, clearance, command freshness) before reaching any controller adapter."
             >
               <ShieldCheck size={13} />
-              <span>SAFETY INTERLOCK: ACTIVE</span>
+              <span>COMMANDS ROUTED VIA SAFETY ENGINE</span>
             </div>
 
-            {/* Alert Drawer Trigger */}
+            {/* Display preferences */}
             <button
-              onClick={() => setIsAlertDrawerOpen(true)}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="its-btn"
+              style={iconBtn}
+              title={`Theme: ${theme}. Press T to toggle.`}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+
+            <button
+              onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+              className="its-btn"
+              style={iconBtn}
+              title={`Density: ${density}. Press D to toggle.`}
+              aria-label={`Switch to ${density === 'compact' ? 'comfortable' : 'compact'} density`}
+              aria-pressed={density === 'compact'}
+            >
+              <Rows3 size={14} />
+            </button>
+
+            <button
+              onClick={() => setWallboard(!wallboard)}
+              className="its-btn"
+              style={{
+                ...iconBtn,
+                borderColor: wallboard ? 'var(--its-border-focused)' : undefined,
+                color: wallboard ? 'var(--its-text-accent)' : undefined,
+              }}
+              title="Wallboard mode for control-room displays. Press W."
+              aria-label="Toggle wallboard mode"
+              aria-pressed={wallboard}
+            >
+              <MonitorPlay size={14} />
+            </button>
+
+            <button
+              onClick={() => setIsShortcutsOpen(true)}
+              className="its-btn"
+              style={iconBtn}
+              title="Keyboard shortcuts"
+              aria-label="Show keyboard shortcuts"
+            >
+              <Keyboard size={14} />
+            </button>
+
+            {/* Notification centre */}
+            <button
+              onClick={() => setIsNotificationsOpen(true)}
               style={{
                 position: 'relative',
                 background: 'var(--its-bg-elevated)',
                 border: '1px solid var(--its-border-default)',
-                color: unreadAlertCount > 0 ? '#f87171' : 'var(--its-text-secondary)',
+                color: unreadCount > 0 ? 'var(--its-signal-red)' : 'var(--its-text-secondary)',
                 width: '32px',
                 height: '32px',
                 borderRadius: 'var(--radius-md)',
@@ -298,29 +476,29 @@ export const Layout: React.FC = () => {
                 justifyContent: 'center',
                 cursor: 'pointer'
               }}
-              title="Inspect Alerts & Incidents"
+              title="Notification centre. Press N."
+              aria-label={`Notification centre, ${unreadCount} unread`}
             >
               <Bell size={15} />
-              {unreadAlertCount > 0 && (
+              {unreadCount > 0 && (
                 <span
                   style={{
                     position: 'absolute',
                     top: '-4px',
                     right: '-4px',
-                    background: '#ef4444',
+                    background: 'var(--its-signal-red)',
                     color: '#ffffff',
                     borderRadius: '50%',
-                    width: '16px',
+                    minWidth: '16px',
                     height: '16px',
                     fontSize: '10px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 'bold',
-                    boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)'
                   }}
                 >
-                  {unreadAlertCount}
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
@@ -330,22 +508,41 @@ export const Layout: React.FC = () => {
         {/* Industrial Status Strip */}
         <div className="system-status-strip">
           <div className="status-strip-nodes">
+            {/* Every indicator below reflects a measurement this session made.
+                Unknown is shown as unknown rather than defaulting to green. */}
             <div className="status-node-item">
-              <span className="status-dot active"></span>
-              <span>REST API: v1 ONLINE</span>
+              <span className={`status-dot ${apiReachable === null ? '' : apiReachable ? 'active' : 'warn'}`}></span>
+              <span>
+                REST API: {apiReachable === null ? 'CHECKING' : apiReachable ? 'RESPONDING' : 'UNREACHABLE'}
+              </span>
             </div>
             <div className="status-node-item">
-              <span className="status-dot active"></span>
-              <span>POSTGRES / SQLITE: READY</span>
+              <span className={`status-dot ${dbStatus === null ? '' : dbStatus === 'CONNECTED' ? 'active' : 'warn'}`}></span>
+              <span>
+                DATABASE{dbDialect ? ` (${dbDialect.toUpperCase()})` : ''}: {dbStatus ?? 'UNKNOWN'}
+              </span>
             </div>
             <div className="status-node-item">
               <span className={`status-dot ${wsConnected ? 'active' : 'warn'}`}></span>
-              <span>WS TELEMETRY: {wsConnected ? 'SYNCHRONIZED' : 'RETRYING'}</span>
+              <span>
+                WS TELEMETRY: {wsConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                {wsConnected && ` • LAST EVENT: ${lastEventAt ? new Date(lastEventAt).toUTCString().slice(17, 25) : 'NONE YET'}`}
+              </span>
             </div>
-            <div className="status-node-item">
-              <span className="status-dot active"></span>
-              <span>NEMA TS2 ENGINE: RIGID</span>
-            </div>
+            {droppedEvents > 0 && (
+              <div className="status-node-item">
+                <span className="status-dot warn"></span>
+                <span title="This console fell behind and the server discarded queued events. Refresh to resynchronise.">
+                  STREAM GAP: {droppedEvents} EVENTS DROPPED
+                </span>
+              </div>
+            )}
+            {schemaCurrent === false && (
+              <div className="status-node-item">
+                <span className="status-dot warn"></span>
+                <span>SCHEMA: MIGRATION PENDING</span>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--its-text-muted)' }}>
@@ -360,9 +557,53 @@ export const Layout: React.FC = () => {
         </div>
       </main>
 
-      {/* Global Modals & Drawers */}
-      <CommandPalette isOpen={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} />
-      <AlertDrawer isOpen={isAlertDrawerOpen} onClose={() => setIsAlertDrawerOpen(false)} />
+      {/* Global modals, drawers and the toast stack */}
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        onOpenCommandWorkflow={(controllerId) => setCommandControllerId(controllerId)}
+        onOpenWizard={() => setIsWizardOpen(true)}
+      />
+
+      <NotificationCenter
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+      />
+
+      <ShortcutsSheet isOpen={isShortcutsOpen} onClose={() => setIsShortcutsOpen(false)} />
+
+      {commandControllerId !== undefined && (
+        <SignalCommandWorkflow
+          controllers={controllers}
+          preselectedControllerId={commandControllerId}
+          onClose={() => setCommandControllerId(undefined)}
+          onExecuted={(result) =>
+            notify({
+              severity: result.status === 'EXECUTED' ? 'INFO' : 'WARNING',
+              title: `Signal command ${result.status}`,
+              detail: `Phase ${result.requested_phase} - safety ${result.safety_check_passed ? 'passed' : 'rejected'}`,
+              origin: 'operator.action',
+              link: '/signals',
+            })
+          }
+        />
+      )}
+
+      {isWizardOpen && (
+        <OnboardingWizard
+          onClose={() => setIsWizardOpen(false)}
+          onComplete={() => navigate('/live-map')}
+        />
+      )}
+
+      <ToastStack />
     </div>
   );
+};
+
+const iconBtn: React.CSSProperties = {
+  width: '32px',
+  height: '32px',
+  padding: 0,
+  justifyContent: 'center',
 };

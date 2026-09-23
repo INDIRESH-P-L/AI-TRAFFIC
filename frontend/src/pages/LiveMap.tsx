@@ -1,264 +1,283 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { FileText, RefreshCw, X } from 'lucide-react';
 import { api } from '../api/client';
-import { GisMap } from '../components/GisMap';
-import { StatusBadge } from '../components/StatusBadge';
-import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
-import {
-  ArrowUpRight,
-  RefreshCw,
-  GitCommit
-} from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { OperationsMap } from '../components/map/OperationsMap';
+import type { MapData } from '../components/map/OperationsMap';
+import { JunctionDrawer } from '../components/JunctionDrawer';
+import { TimeScrubber } from '../components/TimeScrubber';
+import { SignalCommandWorkflow } from '../components/SignalCommandWorkflow';
+import { ProvenanceChip } from '../components/provenance/Provenance';
+import { SkeletonRows } from '../components/Skeleton';
+import { useConsole } from '../context/ConsoleContext';
+import { formatAge, normalizeQuality, qualityAppearance, qualityForAge } from '../lib/quality';
+import { useTickingAge } from '../hooks/useTickingAge';
+
+/**
+ * TRAFFICINTEL AI - Live GIS Operations
+ *
+ * The map is the primary surface; everything else on this page is a
+ * click-through from it. Layer data refreshes on a slow backstop poll and
+ * immediately on any relevant live event, so the operator does not have to
+ * decide when to press refresh.
+ */
 
 export const LiveMap: React.FC = () => {
-  const [intersections, setIntersections] = useState<any[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedTraffic, setSelectedTraffic] = useState<any>(null);
+  const [data, setData] = useState<MapData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [areaSelection, setAreaSelection] = useState<string[] | null>(null);
+  const [commandControllerId, setCommandControllerId] = useState<string | null | undefined>(undefined);
+  const [controllers, setControllers] = useState<any[]>([]);
 
-  const loadData = useCallback(async () => {
+  const { subscribe } = useConsole();
+  const generatedAge = useTickingAge(data?.generated_at);
+
+  const load = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
+    setError(null);
     try {
-      setRefreshing(true);
-      const data = await api.getIntersections();
-      setIntersections(data);
-      if (data.length > 0 && !selectedId) {
-        setSelectedId(data[0].id);
-      }
-    } catch (err) {
-      console.error('Failed to load map intersections', err);
+      const [layers, controllerList] = await Promise.all([
+        api.getMapLayers(),
+        api.getControllers().catch(() => []),
+      ]);
+      setData(layers);
+      setControllers(controllerList);
+    } catch (err: any) {
+      setError(err.message || 'Could not load map layers');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    load(true);
+  }, [load]);
 
+  // Live: any signal or incident event re-reads the layers.
   useEffect(() => {
-    if (!selectedId) {
-      setSelectedTraffic(null);
-      return;
-    }
-    const loadTraffic = async () => {
-      try {
-        const traffic = await api.getIntersectionTraffic(selectedId);
-        setSelectedTraffic(traffic);
-      } catch {
-        setSelectedTraffic(null);
-      }
+    const unsubSignal = subscribe('signal.*', () => load());
+    const unsubIncident = subscribe('incident.*', () => load());
+    return () => {
+      unsubSignal();
+      unsubIncident();
     };
-    loadTraffic();
-  }, [selectedId]);
+  }, [subscribe, load]);
 
-  const selectedIntersection = intersections.find((i) => i.id === selectedId);
+  // Backstop poll: quality states age even when nothing is emitted.
+  useEffect(() => {
+    const timer = setInterval(() => load(), 30000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  const junctions = data?.layers.junctions?.features ?? [];
+  const selectedFeature = junctions.find(f => f.id === (drawerId ?? selectedId));
+  const thresholds = data?.quality_thresholds_sec;
+
+  // Quality roll-up across the network, computed from real ages.
+  const qualitySummary = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const now = Date.now();
+    junctions.forEach(feature => {
+      const provenance = feature.traffic?.quality;
+      const state = provenance?.observed_at
+        ? qualityForAge((now - new Date(provenance.observed_at).getTime()) / 1000, thresholds)
+        : normalizeQuality(feature.traffic?.data_quality);
+      counts[state] = (counts[state] ?? 0) + 1;
+    });
+    return counts;
+  }, [junctions, thresholds]);
+
+  const areaSelectedJunctions = useMemo(
+    () => (areaSelection ? junctions.filter(f => areaSelection.includes(f.id)) : []),
+    [areaSelection, junctions],
+  );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: 'calc(100vh - 120px)' }}>
-      {/* Top Bar */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: 'var(--its-gradient-hero)',
-          padding: '12px 20px',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--its-border-subtle)',
-          flexShrink: 0,
-        }}
-      >
-        <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Network quality roll-up ---------------------------------------- */}
+      <div className="its-card">
+        <div className="its-card-header">
+          <span className="its-card-title">Network Data Quality</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: 'var(--text-md)', fontWeight: 800, color: 'var(--its-text-primary)' }}>
-              LIVE GIS OPERATIONS MAP
-            </h1>
-            <span className="status-badge active">ESRI DOT CANVAS</span>
-          </div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', marginTop: '2px' }}>
-            High-contrast light arterial GIS basemap displaying real NEMA TS2 junction nodes and detector reachability.
+            {data && (
+              <span className="mono" style={{ fontSize: '10px', color: 'var(--its-text-muted)' }}>
+                LAYERS {formatAge(generatedAge)} OLD
+              </span>
+            )}
+            <button onClick={() => load(true)} className="its-btn" style={{ padding: '3px 8px' }}>
+              <RefreshCw size={12} className={loading ? 'pulse-indicator' : ''} />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={loadData}
-            className="its-btn"
-            disabled={refreshing}
-            title="Refresh GIS spatial nodes"
+        {loading && !data ? (
+          <SkeletonRows rows={1} label="Network quality" />
+        ) : junctions.length === 0 ? (
+          <div
+            className="mono"
+            style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--its-text-muted)' }}
           >
-            <RefreshCw size={13} className={refreshing ? 'pulse-indicator' : ''} />
-            <span>Sync GIS</span>
-          </button>
-
-          <Link to="/intersections" className="its-btn its-btn-primary" style={{ textDecoration: 'none' }}>
-            <GitCommit size={13} />
-            <span>Add Node</span>
-          </Link>
-        </div>
+            SYSTEM READY - NO TRAFFIC INFRASTRUCTURE IS CURRENTLY CONNECTED
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            {Object.entries(qualitySummary).map(([state, count]) => {
+              const appearance = qualityAppearance(state as any);
+              return (
+                <div key={state} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <span
+                    style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: appearance.color, border: `1px solid ${appearance.border}`,
+                    }}
+                  />
+                  <span className="mono" style={{ fontSize: 'var(--text-xs)', fontWeight: 700 }}>
+                    {count}
+                  </span>
+                  <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-muted)' }}>
+                    {appearance.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {intersections.length === 0 && !loading ? (
-        <div style={{ flex: 1 }}>
-          <TruthfulEmptyState
-            title="NO GIS INFRASTRUCTURE CONFIGURED"
-            description="No physical intersections with geographic coordinates (latitude/longitude) have been configured in the system."
-            actionText="Add Intersection Coordinates"
-            actionLink="/intersections"
-          />
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: '16px', flex: 1, overflow: 'hidden' }}>
-          {/* Main Map Canvas */}
-          <div
-            className="its-card"
-            style={{
-              padding: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-            }}
-          >
-            <GisMap
-              intersections={intersections}
-              selectedId={selectedId}
-              onSelectIntersection={(id) => setSelectedId(id)}
-              height="100%"
-            />
-          </div>
+      {/* Map -------------------------------------------------------------- */}
+      <div
+        className="its-card"
+        style={{ padding: 0, overflow: 'hidden', height: 'min(62vh, 620px)', minHeight: '360px' }}
+      >
+        <OperationsMap
+          data={data}
+          loading={loading && !data}
+          error={error}
+          selectedId={selectedId}
+          onSelectJunction={id => {
+            setSelectedId(id);
+            setDrawerId(id);
+          }}
+          onAreaSelect={ids => setAreaSelection(ids)}
+        />
+      </div>
 
-          {/* Right Inspector Drawer (Section 18) */}
-          <div
-            className="its-card"
-            style={{
-              padding: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '14px 16px',
-                borderBottom: '1px solid var(--its-border-subtle)',
-                background: 'var(--its-bg-subsurface)',
-              }}
+      {/* Area selection bulk report --------------------------------------- */}
+      {areaSelection && (
+        <div className="its-card">
+          <div className="its-card-header">
+            <span className="its-card-title">
+              <FileText size={14} color="var(--its-text-accent)" />
+              <span>Area Selection Report</span>
+            </span>
+            <button
+              onClick={() => setAreaSelection(null)}
+              className="its-btn"
+              style={{ padding: '3px 8px' }}
+              aria-label="Clear area selection"
             >
-              <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-cyan)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                SPATIAL NODE INSPECTOR
-              </div>
-              <div style={{ fontSize: 'var(--text-md)', fontWeight: 800, color: 'var(--its-text-primary)', marginTop: '2px' }}>
-                {selectedIntersection ? selectedIntersection.name : 'Select node on GIS map'}
-              </div>
-              {selectedIntersection && (
-                <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-muted)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  CODE: {selectedIntersection.code} • {selectedIntersection.latitude.toFixed(5)}, {selectedIntersection.longitude.toFixed(5)}
-                </div>
-              )}
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {selectedIntersection ? (
-                <>
-                  {/* Status Grid */}
-                  <div>
-                    <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--its-text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                      SUBSYSTEM STATUS
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--its-bg-subsurface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--its-border-subtle)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)' }}>Operational Health:</span>
-                        <StatusBadge status={selectedIntersection.operational_status} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)' }}>Signal Controller:</span>
-                        <StatusBadge status={selectedIntersection.controller_status} />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)' }}>Edge Camera:</span>
-                        <StatusBadge status={selectedIntersection.camera_status} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Telemetry Observations */}
-                  <div>
-                    <div style={{ fontSize: 'var(--text-2xs)', fontWeight: 700, color: 'var(--its-text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                      ROADWAY TELEMETRY
-                    </div>
-                    {selectedTraffic && selectedTraffic.data_quality !== 'NO_DATA' && selectedTraffic.vehicle_count !== null ? (
-                      <div
-                        style={{
-                          background: 'var(--its-bg-subsurface)',
-                          padding: '12px',
-                          borderRadius: 'var(--radius-md)',
-                          border: '1px solid var(--its-border-subtle)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Flow Rate:</span>
-                          <span className="mono" style={{ fontWeight: 700 }}>{selectedTraffic.vehicle_count} veh/hr</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Mean Speed:</span>
-                          <span className="mono" style={{ fontWeight: 700 }}>{selectedTraffic.avg_speed_kph} km/h</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Queue Depth:</span>
-                          <span className="mono" style={{ fontWeight: 700 }}>{selectedTraffic.queue_length_meters} m</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--its-border-subtle)' }}>
-                          <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-muted)' }}>Freshness:</span>
-                          <StatusBadge status={selectedTraffic.data_quality} />
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          padding: '16px',
-                          background: 'var(--its-bg-subsurface)',
-                          border: '1px dashed var(--its-border-subtle)',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 'var(--text-xs)',
-                          color: 'var(--its-text-muted)',
-                          textAlign: 'center',
-                        }}
-                      >
-                        NO LIVE TELEMETRY
-                        <div style={{ fontSize: '10px', marginTop: '4px' }}>
-                          Roadside sensors not reporting counts.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ marginTop: 'auto' }}>
-                    <button
-                      onClick={() => navigate(`/intersections/${selectedIntersection.id}`)}
-                      className="its-btn its-btn-primary"
-                      style={{ width: '100%', justifyContent: 'space-between', padding: '9px 14px' }}
-                    >
-                      <span>Open Junction Topology</span>
-                      <ArrowUpRight size={14} />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div style={{ color: 'var(--its-text-muted)', fontSize: 'var(--text-xs)', textAlign: 'center', marginTop: '40px' }}>
-                  Click an intersection pin on the GIS map to inspect live controllers and telemetry.
-                </div>
-              )}
-            </div>
+              <X size={12} />
+              <span>Clear</span>
+            </button>
           </div>
+
+          {areaSelectedJunctions.length === 0 ? (
+            <div
+              className="mono"
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)', fontWeight: 700 }}
+            >
+              NO JUNCTIONS INSIDE THE SELECTED AREA
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-secondary)', marginBottom: '10px' }}>
+                {areaSelectedJunctions.length} junction
+                {areaSelectedJunctions.length === 1 ? '' : 's'} selected. Every row reports the
+                state that was actually read; nothing is summarised across junctions that
+                have not reported.
+              </div>
+
+              <div className="its-table-container">
+                <table className="its-table">
+                  <thead>
+                    <tr>
+                      <th>Junction</th>
+                      <th>Controller</th>
+                      <th>Green now</th>
+                      <th>Traffic data</th>
+                      <th>Open incidents</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {areaSelectedJunctions.map(feature => (
+                      <tr key={feature.id}>
+                        <td>
+                          <button
+                            onClick={() => {
+                              setSelectedId(feature.id);
+                              setDrawerId(feature.id);
+                            }}
+                            style={{
+                              background: 'transparent', border: 'none', padding: 0,
+                              color: 'var(--its-text-accent)', cursor: 'pointer',
+                              fontWeight: 600, fontSize: 'inherit',
+                            }}
+                          >
+                            {feature.name}
+                          </button>
+                          <div className="mono" style={{ fontSize: '10px', color: 'var(--its-text-muted)' }}>
+                            {feature.code}
+                          </div>
+                        </td>
+                        <td className="mono">{feature.controller?.connection_status ?? 'NOT CONFIGURED'}</td>
+                        <td className="mono">
+                          {feature.controller?.active_phase ?? 'NOT READ'}
+                        </td>
+                        <td>
+                          <ProvenanceChip
+                            provenance={feature.traffic?.quality}
+                            thresholds={thresholds}
+                            compact
+                          />
+                        </td>
+                        <td className="mono">{feature.open_incident_count ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
+      )}
+
+      {/* Historical replay for the selected junction ---------------------- */}
+      <TimeScrubber
+        junctionId={drawerId ?? selectedId}
+        junctionName={selectedFeature?.name}
+      />
+
+      {/* Drawers ---------------------------------------------------------- */}
+      {drawerId && (
+        <JunctionDrawer
+          junctionId={drawerId}
+          mapFeature={selectedFeature}
+          thresholds={thresholds}
+          onClose={() => setDrawerId(null)}
+          onIssueCommand={controllerId => setCommandControllerId(controllerId)}
+        />
+      )}
+
+      {commandControllerId !== undefined && (
+        <SignalCommandWorkflow
+          controllers={controllers}
+          preselectedControllerId={commandControllerId}
+          onClose={() => setCommandControllerId(undefined)}
+          onExecuted={() => load()}
+        />
       )}
     </div>
   );

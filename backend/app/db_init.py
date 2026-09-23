@@ -4,7 +4,8 @@ Creates clean relational tables and provisions the initial authorized administra
 Contains ZERO fake operational data, zero synthetic vehicles, zero fake cameras.
 """
 
-from app.core.database import Base, engine, SessionLocal
+from app.core.database import SessionLocal
+from app.core.migrations import upgrade_to_head
 from app.models.entities import User
 from app.core.security import get_password_hash
 from app.copilot.knowledge_rag import KnowledgeRAGEngine
@@ -15,8 +16,9 @@ logger = logging.getLogger("trafficintel-init")
 
 
 def init_db():
-    logger.info("Creating clean database tables...")
-    Base.metadata.create_all(bind=engine)
+    logger.info("Applying database migrations...")
+    revision = upgrade_to_head()
+    logger.info("Schema is at revision %s", revision)
 
     db = SessionLocal()
     try:

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { PerformanceMeasures, TimeOfDayProfile } from '../components/PerformanceMeasures';
+import { SkeletonCard } from '../components/Skeleton';
 import { StatusBadge } from '../components/StatusBadge';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
 import { BarChart3, Database, RefreshCw, TrendingUp } from 'lucide-react';
@@ -10,15 +12,21 @@ export const Analytics: React.FC = () => {
   const [selectedIntersection, setSelectedIntersection] = useState<string>('ALL');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('24H');
   const [loading, setLoading] = useState(true);
+  const [dbStatus, setDbStatus] = useState<string | null>(null);
+  const [performance, setPerformance] = useState<any>(null);
+  const [todProfile, setTodProfile] = useState<any>(null);
+  const [measureLoading, setMeasureLoading] = useState(false);
 
   const loadData = async () => {
     try {
-      const [analyticsRes, inters] = await Promise.all([
+      const [analyticsRes, inters, systemStatus] = await Promise.all([
         api.getAnalyticsSummary(),
         api.getIntersections().catch(() => []),
+        api.getSystemStatus().catch(() => null),
       ]);
       setData(analyticsRes);
       setIntersections(inters);
+      setDbStatus(systemStatus?.subsystems?.database?.status ?? null);
     } catch (err) {
       console.error('Failed to load analytics', err);
     } finally {
@@ -29,6 +37,28 @@ export const Analytics: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // ATSPM measures are per junction, so they load on selection rather than
+  // with the page. "ALL" has no meaningful aggregate: averaging delay across
+  // junctions with different sample counts would invent a network figure
+  // nobody measured.
+  useEffect(() => {
+    if (selectedIntersection === 'ALL') {
+      setPerformance(null);
+      setTodProfile(null);
+      return;
+    }
+    setMeasureLoading(true);
+    Promise.all([
+      api.getPerformanceReport(selectedIntersection, 24).catch(() => null),
+      api.getTimeOfDayProfile(selectedIntersection, 7).catch(() => null),
+    ])
+      .then(([report, profile]) => {
+        setPerformance(report);
+        setTodProfile(profile);
+      })
+      .finally(() => setMeasureLoading(false));
+  }, [selectedIntersection]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -171,7 +201,13 @@ export const Analytics: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
                   <span style={{ color: 'var(--its-text-secondary)' }}>Conflict Monitor Units (MMU):</span>
-                  <span className="mono" style={{ fontWeight: 700, color: '#34d399' }}>0 Faults / Nominal</span>
+                  <span
+                    className="mono"
+                    style={{ fontWeight: 700, color: 'var(--its-text-muted)' }}
+                    title="MMU/CMU fault logs are not polled by any implemented controller adapter. An unread fault log is not a clean one."
+                  >
+                    NOT POLLED
+                  </span>
                 </div>
               </div>
             </div>
@@ -189,7 +225,15 @@ export const Analytics: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '10px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
                   <span style={{ color: 'var(--its-text-secondary)' }}>Database State:</span>
-                  <span className="mono" style={{ fontWeight: 700, color: '#34d399' }}>SYNCHRONIZED</span>
+                  <span
+                    className="mono"
+                    style={{
+                      fontWeight: 700,
+                      color: dbStatus === 'CONNECTED' ? '#34d399' : dbStatus ? '#f87171' : 'var(--its-text-muted)',
+                    }}
+                  >
+                    {dbStatus ?? 'UNKNOWN'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
                   <span style={{ color: 'var(--its-text-secondary)' }}>Storage Engine:</span>
@@ -197,12 +241,55 @@ export const Analytics: React.FC = () => {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
                   <span style={{ color: 'var(--its-text-secondary)' }}>Synthetic Data Allowance:</span>
-                  <span className="mono" style={{ fontWeight: 700, color: '#f87171' }}>0% (STRICT PROHIBITION)</span>
+                  <span className="mono" style={{ fontWeight: 700, color: 'var(--its-text-secondary)' }}>NONE</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ATSPM signal performance measures ---------------------------- */}
+      <div className="its-card">
+        <div className="its-card-header">
+          <span className="its-card-title">Signal Performance Measures</span>
+          <select
+            className="its-select"
+            value={selectedIntersection}
+            onChange={(e) => setSelectedIntersection(e.target.value)}
+            style={{ width: 'auto', minWidth: '200px' }}
+            aria-label="Junction for performance measures"
+          >
+            <option value="ALL">Select a junction…</option>
+            {intersections.map((inter: any) => (
+              <option key={inter.id} value={inter.id}>{inter.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedIntersection === 'ALL' ? (
+          <div style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-secondary)', lineHeight: 1.7 }}>
+            Select a junction to compute its measures. There is no network-wide
+            aggregate here on purpose: averaging delay across junctions with
+            different sample counts would produce a figure nobody measured.
+          </div>
+        ) : measureLoading ? (
+          <div className="grid-3">
+            <SkeletonCard label="Performance measure" metrics={1} />
+            <SkeletonCard label="Performance measure" metrics={1} />
+            <SkeletonCard label="Performance measure" metrics={1} />
+          </div>
+        ) : performance ? (
+          <PerformanceMeasures report={performance} />
+        ) : (
+          <div className="mono" style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--its-text-muted)' }}>
+            PERFORMANCE REPORT UNAVAILABLE
+          </div>
+        )}
+      </div>
+
+      {selectedIntersection !== 'ALL' && todProfile && (
+        <TimeOfDayProfile profile={todProfile} />
       )}
     </div>
   );

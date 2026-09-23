@@ -46,9 +46,15 @@ def create_sensor(
 def ingest_sensor_telemetry(
     id: str,
     payload: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["ADMIN", "ENGINEER", "OPERATOR"]))
 ):
-    """Ingests raw sensor telemetry with physical range validation."""
+    """Ingests raw sensor telemetry with physical range validation.
+
+    Authenticated: an unauthenticated ingest endpoint lets anyone on the
+    network write observations that the console then presents as measured
+    roadway data.
+    """
     sensor = db.query(Sensor).filter(Sensor.id == id).first()
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")

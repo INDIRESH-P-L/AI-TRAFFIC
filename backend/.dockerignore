@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.venv
+venv
+# Never ship the developer's operational database into an image: it would
+# arrive in production carrying local records that look like real history.
+*.db
+*.db-journal
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log

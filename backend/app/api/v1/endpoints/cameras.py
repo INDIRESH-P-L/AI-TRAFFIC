@@ -59,9 +59,13 @@ def test_camera_connection(
         raise HTTPException(status_code=404, detail="Camera not found")
 
     adapter = NetworkCameraAdapter(stream_url=camera.stream_url)
-    success, msg, details = adapter.test_connection()
+    info = adapter.get_stream_info()
+    success = info["stream_status"] != "OFFLINE"
 
-    camera.stream_status = "CONNECTED" if success else "OFFLINE"
+    # REACHABLE, not CONNECTED: a successful TCP handshake proves the host is
+    # listening. CONNECTED is reserved for a camera that has actually delivered
+    # frames through the ingest endpoint.
+    camera.stream_status = "REACHABLE" if success else "OFFLINE"
     db.commit()
 
     return {
@@ -69,8 +73,12 @@ def test_camera_connection(
         "name": camera.name,
         "stream_url": camera.stream_url,
         "stream_status": camera.stream_status,
-        "test_result": msg,
-        "details": details
+        "test_result": info["message"],
+        "measurement_status": info["measurement_status"],
+        "fps": info["fps"],
+        "resolution": info["resolution"],
+        "last_frame_timestamp": camera.last_frame_timestamp.isoformat() if camera.last_frame_timestamp else None,
+        "details": info["details"]
     }
 
 

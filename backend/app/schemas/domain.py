@@ -198,10 +198,21 @@ class SignalControllerResponse(BaseModel):
         from_attributes = True
 
 
+class SafetyCheck(BaseModel):
+    """One deterministic rule's verdict, rendered as its own row in the console."""
+
+    code: str                       # e.g. PHASE_CONFLICT_MATRIX_VALIDATION
+    label: str                      # e.g. "Phase conflict matrix"
+    passed: bool
+    detail: str                     # plain-language explanation, pass or fail
+    standard: Optional[str] = None  # the standard the rule derives from
+
+
 class SafetyCheckResult(BaseModel):
     is_safe: bool
-    violations: List[str] = []
-    checks_performed: List[str] = []
+    violations: List[str] = []           # details of failed checks
+    checks_performed: List[str] = []     # codes of every rule evaluated
+    checks: List[SafetyCheck] = []       # per-rule verdicts, in evaluation order
     details: Dict[str, Any] = {}
 
 
@@ -342,3 +353,181 @@ class CopilotResponse(BaseModel):
     telemetry_state: str  # REAL_TELEMETRY_AVAILABLE, NO_LIVE_TELEMETRY, INSUFFICIENT_DATA
     citations: List[Dict[str, Any]] = []
     suggested_actions: List[Dict[str, Any]] = []
+
+
+class PreemptionRequest(BaseModel):
+    """Emergency vehicle preemption call.
+
+    Carried as a request body (the operations console posts JSON). The
+    requested phase is validated by the Deterministic Safety Engine exactly
+    like any other signal command - preemption raises priority, never the
+    permission to create a conflict.
+    """
+
+    intersection_id: str
+    vehicle_id: str
+    vehicle_type: str  # AMBULANCE, FIRE_TRUCK, POLICE
+    requested_phase: int
+    priority_level: int = Field(default=1, ge=1, le=5)
+    source: str = "OPERATOR_CONSOLE"
+    dwell_sec: Optional[int] = Field(
+        default=None,
+        description="Requested green dwell. Defaults to the target phase's configured minimum green.",
+    )
+
+
+class PreemptionResponse(BaseModel):
+    event_id: str
+    intersection_id: str
+    vehicle_id: str
+    vehicle_type: str
+    requested_phase: int
+    status: str  # ACTIVE, REJECTED
+    safety_clearance_passed: bool
+    safety_report: SafetyCheckResult
+    controller_id: Optional[str] = None
+    timestamp: datetime
+
+
+class SignalCommandPreview(BaseModel):
+    """Result of a dry-run validation. Nothing was written and nothing was sent."""
+
+    controller_id: str
+    controller_name: str
+    requested_phase: int
+    duration_sec: int
+    would_be_accepted: bool
+    safety_report: SafetyCheckResult
+    controller_state: Optional[Dict[str, Any]] = None
+    evaluated_at: datetime
+
+
+class AlertRuleCreate(BaseModel):
+    """A rule an operator defines. Evaluated only against stored real state."""
+
+    name: str
+    description: Optional[str] = None
+    condition_type: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    intersection_id: Optional[str] = None
+    severity: str = "WARNING"
+    enabled: bool = True
+    cooldown_sec: int = Field(default=300, ge=0, le=86400)
+    escalate_after_sec: Optional[int] = Field(default=None, ge=0, le=86400)
+    escalate_to_severity: Optional[str] = None
+    delivery_channels: List[str] = Field(default_factory=lambda: ["UI"])
+    webhook_url: Optional[str] = None
+    email_to: Optional[str] = None
+
+
+class AlertRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
+    severity: Optional[str] = None
+    enabled: Optional[bool] = None
+    cooldown_sec: Optional[int] = Field(default=None, ge=0, le=86400)
+    escalate_after_sec: Optional[int] = Field(default=None, ge=0, le=86400)
+    escalate_to_severity: Optional[str] = None
+    delivery_channels: Optional[List[str]] = None
+    webhook_url: Optional[str] = None
+    email_to: Optional[str] = None
+
+
+class AlertRuleResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    condition_type: str
+    parameters: Dict[str, Any]
+    intersection_id: Optional[str] = None
+    severity: str
+    enabled: bool
+    cooldown_sec: int
+    escalate_after_sec: Optional[int] = None
+    escalate_to_severity: Optional[str] = None
+    delivery_channels: Optional[List[str]] = None
+    webhook_url: Optional[str] = None
+    email_to: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_evaluated_at: Optional[datetime] = None
+    last_fired_at: Optional[datetime] = None
+    fire_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class MovementInput(BaseModel):
+    """Demand on one movement. Volumes are supplied, never generated."""
+
+    phase_number: int
+    name: Optional[str] = None
+    volume_vph: float = Field(ge=0, le=10000)
+    lanes: int = Field(default=1, ge=1, le=8)
+    saturation_flow_vphpl: Optional[float] = Field(default=None, ge=500, le=2400)
+    min_green_sec: int = Field(default=7, ge=1, le=120)
+    max_green_sec: int = Field(default=65, ge=5, le=300)
+    source: Optional[str] = None
+    sample_size: int = 0
+
+
+class OptimizerRequest(BaseModel):
+    """Ask for a timing proposal.
+
+    With no `movements`, demand is read from measured telemetry over
+    `window_minutes`. With `movements`, the operator's volumes are used and
+    the result is labelled as operator-entered.
+    """
+
+    intersection_id: str
+    movements: Optional[List[MovementInput]] = None
+    window_minutes: int = Field(default=60, ge=5, le=1440)
+
+
+class ScenarioRequest(BaseModel):
+    """Run a hypothetical. Output is stamped SCENARIO and stored separately."""
+
+    intersection_id: Optional[str] = None
+    label: str
+    movements: List[MovementInput]
+    lost_time_per_phase_sec: float = Field(default=4.0, ge=0.0, le=20.0)
+    compare_to_measured: bool = False
+    baseline_window_minutes: int = Field(default=60, ge=5, le=1440)
+
+
+class ApiKeyCreate(BaseModel):
+    """Request a scoped machine credential.
+
+    A key cannot hold a scope its creator lacks, and can never hold
+    signal:command - issuing a signal change requires a named accountable
+    operator, not a shared machine credential.
+    """
+
+    name: str
+    scopes: List[str]
+    expires_in_days: int = Field(default=90, ge=1, le=730)
+
+
+class PendingAction(BaseModel):
+    """One item the outgoing operator flags for the incoming one."""
+
+    kind: str
+    reference: Optional[str] = None
+    summary: str
+    #: AUTO_GENERATED items came from the platform; OPERATOR items were added
+    #: by hand. Keeping them distinguishable means a reader can tell what the
+    #: platform noticed from what a person noticed.
+    source: str = "OPERATOR"
+    done: bool = False
+
+
+class HandoverCreate(BaseModel):
+    shift_hours: int = Field(default=8, ge=1, le=24)
+    incoming_operator: Optional[str] = None
+
+
+class HandoverUpdate(BaseModel):
+    operator_notes: Optional[str] = None
+    pending_actions: Optional[List[PendingAction]] = None

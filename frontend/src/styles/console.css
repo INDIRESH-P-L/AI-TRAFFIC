@@ -1,0 +1,493 @@
+/* ==========================================================================
+   TRAFFICINTEL AI — Console Shell: Theming, Density, Wallboard, Primitives
+
+   Layered on top of design-tokens.css, which defines the complete LIGHT
+   palette on bare :root. Only tokens whose ROLE changes are redefined below.
+   No colour gets its only definition inside a media or [data-theme] block, so
+   a browser that matches neither still renders a complete palette.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Dark theme
+   Defined twice on purpose: once behind prefers-color-scheme (guarded so an
+   explicit light choice wins), and once for an explicit dark choice. Without
+   both, the toggle only works in one direction.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --its-bg-app: #0b1120;
+    --its-bg-subsurface: #111827;
+    --its-bg-surface: #151d2e;
+    --its-bg-card: #151d2e;
+    --its-bg-elevated: #1c2536;
+    --its-bg-hover: #1e293b;
+    --its-bg-active: #273449;
+    --its-bg-glass: rgba(21, 29, 46, 0.92);
+    --its-bg-subtle: rgba(248, 250, 252, 0.04);
+
+    --its-border-subtle: #1f2937;
+    --its-border-default: #334155;
+    --its-border-accent: #1e40af;
+    --its-border-focused: #60a5fa;
+    --its-grid-line: rgba(96, 165, 250, 0.06);
+
+    --its-text-primary: #f1f5f9;
+    --its-text-secondary: #cbd5e1;
+    --its-text-muted: #94a3b8;
+    --its-text-disabled: #64748b;
+    --its-text-accent: #60a5fa;
+    --its-text-brand: #93c5fd;
+    --its-text-teal: #2dd4bf;
+    --its-text-cyan: #38bdf8;
+    --its-text-indigo: #a5b4fc;
+
+    /* Signal colours keep their meaning; only their surfaces invert. */
+    --its-signal-green: #34d399;
+    --its-signal-green-bg: rgba(16, 185, 129, 0.14);
+    --its-signal-green-border: rgba(52, 211, 153, 0.45);
+
+    --its-signal-yellow: #fbbf24;
+    --its-signal-yellow-bg: rgba(245, 158, 11, 0.14);
+    --its-signal-yellow-border: rgba(251, 191, 36, 0.45);
+
+    --its-signal-red: #f87171;
+    --its-signal-red-bg: rgba(239, 68, 68, 0.14);
+    --its-signal-red-border: rgba(248, 113, 113, 0.45);
+
+    --its-fresh-blue: #60a5fa;
+    --its-fresh-teal: #2dd4bf;
+    --its-fresh-bg: rgba(37, 99, 235, 0.14);
+    --its-stale-gray: #94a3b8;
+    --its-stale-bg: rgba(148, 163, 184, 0.12);
+
+    --its-gradient-hero: linear-gradient(135deg, #151d2e 0%, #10212a 50%, #121c33 100%);
+    --its-gradient-card: linear-gradient(180deg, #151d2e 0%, #111827 100%);
+    --its-gradient-nav-active: linear-gradient(90deg, rgba(37, 99, 235, 0.18) 0%, rgba(13, 148, 136, 0.14) 100%);
+    --its-gradient-brand: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+    --its-gradient-teal: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+    --its-gradient-glow: radial-gradient(circle at 50% 0%, rgba(96, 165, 250, 0.08), transparent 70%);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 20px 35px -5px rgba(0, 0, 0, 0.5), 0 10px 15px -5px rgba(0, 0, 0, 0.35);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --its-bg-app: #0b1120;
+  --its-bg-subsurface: #111827;
+  --its-bg-surface: #151d2e;
+  --its-bg-card: #151d2e;
+  --its-bg-elevated: #1c2536;
+  --its-bg-hover: #1e293b;
+  --its-bg-active: #273449;
+  --its-bg-glass: rgba(21, 29, 46, 0.92);
+  --its-bg-subtle: rgba(248, 250, 252, 0.04);
+
+  --its-border-subtle: #1f2937;
+  --its-border-default: #334155;
+  --its-border-accent: #1e40af;
+  --its-border-focused: #60a5fa;
+  --its-grid-line: rgba(96, 165, 250, 0.06);
+
+  --its-text-primary: #f1f5f9;
+  --its-text-secondary: #cbd5e1;
+  --its-text-muted: #94a3b8;
+  --its-text-disabled: #64748b;
+  --its-text-accent: #60a5fa;
+  --its-text-brand: #93c5fd;
+  --its-text-teal: #2dd4bf;
+  --its-text-cyan: #38bdf8;
+  --its-text-indigo: #a5b4fc;
+
+  --its-signal-green: #34d399;
+  --its-signal-green-bg: rgba(16, 185, 129, 0.14);
+  --its-signal-green-border: rgba(52, 211, 153, 0.45);
+
+  --its-signal-yellow: #fbbf24;
+  --its-signal-yellow-bg: rgba(245, 158, 11, 0.14);
+  --its-signal-yellow-border: rgba(251, 191, 36, 0.45);
+
+  --its-signal-red: #f87171;
+  --its-signal-red-bg: rgba(239, 68, 68, 0.14);
+  --its-signal-red-border: rgba(248, 113, 113, 0.45);
+
+  --its-fresh-blue: #60a5fa;
+  --its-fresh-teal: #2dd4bf;
+  --its-fresh-bg: rgba(37, 99, 235, 0.14);
+  --its-stale-gray: #94a3b8;
+  --its-stale-bg: rgba(148, 163, 184, 0.12);
+
+  --its-gradient-hero: linear-gradient(135deg, #151d2e 0%, #10212a 50%, #121c33 100%);
+  --its-gradient-card: linear-gradient(180deg, #151d2e 0%, #111827 100%);
+  --its-gradient-nav-active: linear-gradient(90deg, rgba(37, 99, 235, 0.18) 0%, rgba(13, 148, 136, 0.14) 100%);
+  --its-gradient-brand: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  --its-gradient-teal: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+  --its-gradient-glow: radial-gradient(circle at 50% 0%, rgba(96, 165, 250, 0.08), transparent 70%);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 35px -5px rgba(0, 0, 0, 0.5), 0 10px 15px -5px rgba(0, 0, 0, 0.35);
+
+  color-scheme: dark;
+}
+
+/* Components that hardcoded #ffffff before theming existed. */
+:root[data-theme='dark'] .its-btn,
+:root[data-theme='dark'] .its-input,
+:root[data-theme='dark'] .its-select,
+:root[data-theme='dark'] .its-table-container {
+  background: var(--its-bg-elevated);
+  color: var(--its-text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .its-btn,
+  :root:not([data-theme='light']) .its-input,
+  :root:not([data-theme='light']) .its-select,
+  :root:not([data-theme='light']) .its-table-container {
+    background: var(--its-bg-elevated);
+    color: var(--its-text-primary);
+  }
+}
+
+/* Leaflet tiles are authored for light backgrounds; damp them in dark mode
+   so markers keep their contrast instead of glowing off a bright basemap. */
+:root[data-theme='dark'] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2. Density
+   Compact trades whitespace for rows on screen. A control-room operator
+   scanning 200 junctions wants the latter; an engineer reading one timing
+   plan wants the former.
+   -------------------------------------------------------------------------- */
+
+:root[data-density='compact'] {
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --space-density: 0.65;
+}
+
+:root[data-density='compact'] .its-card {
+  padding: 10px;
+}
+
+:root[data-density='compact'] .its-card-header {
+  margin-bottom: 8px;
+}
+
+:root[data-density='compact'] .its-btn {
+  padding: 4px 9px;
+}
+
+:root[data-density='compact'] .its-table td,
+:root[data-density='compact'] .its-table th {
+  padding: 5px 8px !important;
+}
+
+:root[data-density='compact'] .nav-link {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* --------------------------------------------------------------------------
+   3. Wallboard mode
+   For a control-room screen read from three metres away: larger type, heavier
+   borders, no hover-dependent affordances.
+   -------------------------------------------------------------------------- */
+
+:root[data-wallboard] {
+  --text-2xs: 0.875rem;
+  --text-xs: 1rem;
+  --text-sm: 1.125rem;
+  --text-base: 1.25rem;
+  --text-md: 1.5rem;
+  --text-lg: 1.875rem;
+  --text-xl: 2.25rem;
+  --text-2xl: 3rem;
+}
+
+:root[data-wallboard] .its-card {
+  border-width: 2px;
+  padding: 20px;
+}
+
+:root[data-wallboard] .app-sidebar,
+:root[data-wallboard] .global-search-trigger {
+  display: none;
+}
+
+:root[data-wallboard] .status-dot {
+  width: 12px;
+  height: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   4. Accessibility: visible focus everywhere, honoured reduced motion
+   -------------------------------------------------------------------------- */
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--its-border-focused);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: var(--its-bg-elevated);
+  color: var(--its-text-primary);
+  border: 2px solid var(--its-border-focused);
+  border-radius: var(--radius-sm);
+}
+
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. Skeleton loaders
+   A skeleton says "this is loading". It must never be mistaken for a value,
+   so skeletons carry no digits and are announced as busy.
+   -------------------------------------------------------------------------- */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--its-bg-subsurface) 25%,
+    var(--its-bg-hover) 37%,
+    var(--its-bg-subsurface) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease infinite;
+  border-radius: var(--radius-xs);
+}
+
+@keyframes skeleton-sweep {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* --------------------------------------------------------------------------
+   6. Toasts
+   -------------------------------------------------------------------------- */
+
+.toast-stack {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--its-bg-elevated);
+  border: 1px solid var(--its-border-default);
+  box-shadow: var(--shadow-lg);
+  animation: toast-in var(--transition-normal);
+}
+
+.toast.severity-CRITICAL { border-color: var(--its-signal-red-border); }
+.toast.severity-WARNING { border-color: var(--its-signal-yellow-border); }
+.toast.severity-INFO { border-color: var(--its-border-accent); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------------------------------
+   7. Map layer control & hover card
+   -------------------------------------------------------------------------- */
+
+.map-layer-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 500;
+  background: var(--its-bg-glass);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--its-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: var(--shadow-md);
+  min-width: 190px;
+}
+
+.map-layer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: var(--text-2xs);
+  color: var(--its-text-secondary);
+}
+
+.map-layer-row:hover {
+  background: var(--its-bg-hover);
+}
+
+.map-hover-card {
+  position: fixed;
+  z-index: 1200;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-md);
+}
+
+/* Marker cluster bubbles are drawn as divIcons, so they inherit tokens. */
+.toc-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-md);
+}
+
+/* --------------------------------------------------------------------------
+   8. Junction drawer (wider than the alert drawer, scrollable body)
+   -------------------------------------------------------------------------- */
+
+.junction-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(520px, 100vw);
+  background: var(--its-bg-surface);
+  border-left: 1px solid var(--its-border-default);
+  box-shadow: var(--shadow-xl);
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide var(--transition-normal);
+}
+
+@keyframes drawer-slide {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.junction-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   9. Safety check rows (the command preview)
+   -------------------------------------------------------------------------- */
+
+.safety-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--its-border-subtle);
+  background: var(--its-bg-surface);
+}
+
+.safety-check-row.passed {
+  border-color: var(--its-signal-green-border);
+  background: var(--its-signal-green-bg);
+}
+
+.safety-check-row.failed {
+  border-color: var(--its-signal-red-border);
+  background: var(--its-signal-red-bg);
+}
+
+/* --------------------------------------------------------------------------
+   10. Responsive: the console has to survive a laptop and a tablet
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .app-sidebar {
+    position: fixed;
+    z-index: 2500;
+    height: 100vh;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .junction-drawer {
+    width: 100vw;
+  }
+}
+
+@media (max-width: 640px) {
+  .system-status-strip {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .page-content {
+    padding: 10px !important;
+  }
+}

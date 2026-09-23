@@ -1,0 +1,8 @@
+node_modules
+dist
+scripts/render-check/out
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log

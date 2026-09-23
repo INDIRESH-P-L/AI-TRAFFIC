@@ -159,14 +159,26 @@ export const Corridors: React.FC = () => {
                           {inter.name}
                         </div>
                         <div style={{ fontSize: '10px', color: 'var(--its-text-muted)' }}>
-                          Offset: <span className="mono" style={{ color: '#34d399' }}>+{idx * 12}s</span>
+                          {/* Coordination offsets are a per-intersection timing
+                              parameter that this platform does not yet read from
+                              the controller. Deriving one from list position
+                              would be an invented timing plan. */}
+                          Offset: <span className="mono" style={{ color: 'var(--its-text-muted)' }}>NOT CONFIGURED</span>
                         </div>
                       </Link>
 
                       {idx < arr.length - 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flex: 1, minWidth: '60px' }}>
-                          <div style={{ height: '2px', width: '100%', background: 'linear-gradient(90deg, #0284c7, #00f0ff)' }} />
-                          <span style={{ fontSize: '9px', color: 'var(--its-text-muted)', fontFamily: 'var(--font-mono)' }}>BANDWIDTH: 45%</span>
+                          {/* Progression bandwidth is computed from real signal
+                              logs across the corridor. Until those logs exist
+                              the link carries no number. */}
+                          <div style={{ height: '2px', width: '100%', background: 'var(--its-border-default)' }} />
+                          <span
+                            style={{ fontSize: '9px', color: 'var(--its-text-muted)', fontFamily: 'var(--font-mono)' }}
+                            title="Progression bandwidth requires stored signal timing logs for both junctions."
+                          >
+                            BANDWIDTH: NO DATA
+                          </span>
                         </div>
                       )}
                     </React.Fragment>

@@ -39,6 +39,18 @@ class DataQualityEngine:
             return "DISCONNECTED", age_sec
 
     @classmethod
+    def fresh_threshold_sec(cls) -> int:
+        return settings.DATA_FRESH_THRESHOLD_SEC
+
+    @classmethod
+    def aging_threshold_sec(cls) -> int:
+        return settings.DATA_AGING_THRESHOLD_SEC
+
+    @classmethod
+    def stale_threshold_sec(cls) -> int:
+        return settings.DATA_STALE_THRESHOLD_SEC
+
+    @classmethod
     def validate_measurement_bounds(cls, measurement_name: str, value: Optional[float]) -> Tuple[bool, Optional[str]]:
         """Physical sanity checks for transportation metrics."""
         if value is None:

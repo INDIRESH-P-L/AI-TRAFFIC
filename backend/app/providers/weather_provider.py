@@ -5,11 +5,15 @@ Never generates synthetic or random weather values.
 If service is unavailable or coordinates are unconfigured, explicitly returns WEATHER_DATA_UNAVAILABLE.
 """
 
+import time
 from typing import Dict, Any, Optional, Tuple
+
 import httpx
 from datetime import datetime, timezone
 from app.providers.base import WeatherProvider
 from app.core.config import settings
+from app.health.circuit import CircuitOpenError
+from app.health.monitor import provider_monitor
 
 
 class RealGISWeatherAdapter(WeatherProvider):
@@ -19,9 +23,28 @@ class RealGISWeatherAdapter(WeatherProvider):
         self.base_url = base_url
         self.timeout = timeout
 
+    #: One health key for the whole provider: it is a single upstream service.
+    HEALTH_KEY = "weather:open-meteo"
+
     def fetch_weather(self, latitude: float, longitude: float) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         if not latitude or not longitude:
             return False, "Invalid GIS coordinates", None
+
+        # A tripped breaker refuses the call outright rather than making the
+        # console wait for another timeout. The refusal is stated, never
+        # papered over with a cached value presented as current.
+        provider = provider_monitor.register(
+            self.HEALTH_KEY, "WEATHER", "Open-Meteo GIS"
+        )
+        try:
+            provider.circuit.raise_if_open()
+        except CircuitOpenError as exc:
+            return False, (
+                "Weather provider circuit is open after repeated failures; "
+                "retrying in {:.0f}s. Last error: {}".format(
+                    exc.retry_after_sec, provider.circuit.last_error
+                )
+            ), None
 
         params = {
             "latitude": latitude,
@@ -30,10 +53,23 @@ class RealGISWeatherAdapter(WeatherProvider):
             "timezone": "UTC"
         }
 
+        started = time.monotonic()
+
+        def _record(success: bool, error: Optional[str] = None) -> None:
+            provider_monitor.record(
+                key=self.HEALTH_KEY,
+                success=success,
+                latency_ms=(time.monotonic() - started) * 1000.0 if success else None,
+                error=error,
+                kind="WEATHER",
+                label="Open-Meteo GIS",
+            )
+
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.get(self.base_url, params=params)
                 if resp.status_code != 200:
+                    _record(False, f"HTTP {resp.status_code}")
                     return False, f"Weather provider HTTP {resp.status_code}", None
 
                 data = resp.json()
@@ -44,6 +80,7 @@ class RealGISWeatherAdapter(WeatherProvider):
                 if precip is not None and precip > 0.0:
                     road_condition = "WET" if precip < 5.0 else "FLOOD_RISK"
 
+                _record(True)
                 return True, "Success", {
                     "latitude": latitude,
                     "longitude": longitude,
@@ -58,6 +95,8 @@ class RealGISWeatherAdapter(WeatherProvider):
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
         except httpx.TimeoutException:
+            _record(False, "timeout after {}s".format(self.timeout))
             return False, "Weather provider timeout", None
         except Exception as e:
+            _record(False, str(e))
             return False, f"Weather provider error: {str(e)}", None
