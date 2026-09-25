@@ -1,0 +1,135 @@
+{
+ "intersection_id": "015c3f7e-2cb1-4cbf-9f51-7576bc13366f",
+ "intersection_name": "Fixture FU-SINGLE",
+ "as_of": "2026-03-10T14:00:00",
+ "recent_window": [
+  "2026-03-10T13:50:00",
+  "2026-03-10T14:00:00"
+ ],
+ "baseline_window": [
+  "2026-03-10T12:50:00",
+  "2026-03-10T13:50:00"
+ ],
+ "thresholds": {
+  "min_independent_sources": 2,
+  "min_occupancy_rise_pct_points": 15.0,
+  "min_speed_drop_fraction": 0.3,
+  "min_samples_per_side": 8,
+  "confidence_level": 0.95
+ },
+ "method_version": "fusion-v1",
+ "independence_basis": "Sources are independent when their reporting identities differ (source_id, or source where no id was recorded). Two identities fed by one physical device would be counted twice; the platform cannot detect that.",
+ "status": "NO_CORROBORATED_INCIDENT",
+ "detail": "No segment shows an incident signature corroborated by 2 or more independent sources. Not evaluated: Fixture Rd Southbound (FEWER_THAN_TWO_INDEPENDENT_SOURCES). No incident can be detected on those segments, which is not the same as none occurring.",
+ "segments": [
+  {
+   "approach_id": "2e93042f-6838-4788-a37c-526dcfb9c8f6",
+   "approach": "Fixture Rd Northbound",
+   "lane_ids": [
+    "2cd5fa82-4add-4894-8665-445fc40fe4c3",
+    "43e820e7-cbd9-4aab-8f85-e2abbc18fa6a"
+   ],
+   "sources_reporting": 2,
+   "configured_sensors": 0,
+   "status": "UNCORROBORATED_SINGLE_SOURCE",
+   "reason": "ONLY_ONE_SOURCE_SHOWS_SYMPTOMS",
+   "explanation": "Both symptoms appear, but only from nb-dual-1. One detector cannot corroborate itself; not reported as an incident.",
+   "source_assessments": [
+    {
+     "source": "nb-dual-1",
+     "sensor_kind": "DUAL_LOOP",
+     "evaluable": true,
+     "occupancy_spike": true,
+     "speed_drop": true,
+     "occupancy": {
+      "status": "EVALUATED",
+      "before_mean": 12.32,
+      "after_mean": 45.72,
+      "difference": 33.4,
+      "ci_low": 32.27,
+      "ci_high": 34.54,
+      "before_samples": 60,
+      "after_samples": 10
+     },
+     "speed": {
+      "status": "EVALUATED",
+      "before_mean": 47.65,
+      "after_mean": 17.22,
+      "difference": -30.43,
+      "ci_low": -31.74,
+      "ci_high": -29.11,
+      "before_samples": 60,
+      "after_samples": 10,
+      "drop_fraction": 0.6386
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "1236f78e-73f7-41e0-8022-b654962c37bd",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    },
+    {
+     "source": "nb-radar-2",
+     "sensor_kind": "RADAR",
+     "evaluable": true,
+     "occupancy_spike": false,
+     "speed_drop": false,
+     "occupancy": {
+      "status": "EVALUATED",
+      "before_mean": 12.04,
+      "after_mean": 11.42,
+      "difference": -0.63,
+      "ci_low": -1.9,
+      "ci_high": 0.64,
+      "before_samples": 60,
+      "after_samples": 10
+     },
+     "speed": {
+      "status": "EVALUATED",
+      "before_mean": 47.88,
+      "after_mean": 48.55,
+      "difference": 0.68,
+      "ci_low": -0.76,
+      "ci_high": 2.11,
+      "before_samples": 60,
+      "after_samples": 10,
+      "drop_fraction": -0.0142
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "36c2cce3-3b1f-450f-9838-747d818c70f2",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    }
+   ],
+   "occupancy_spike_sources": [
+    "nb-dual-1"
+   ],
+   "speed_drop_sources": [
+    "nb-dual-1"
+   ],
+   "corroborating_sources": [
+    "nb-dual-1"
+   ],
+   "evaluated_but_not_corroborating": [
+    "nb-radar-2"
+   ],
+   "corroboration_ratio": 0.5,
+   "corroboration_ratio_basis": "Share of evaluable sources on this segment showing a symptom. A measure of agreement between sensors, not a probability that an incident is occurring."
+  },
+  {
+   "approach_id": "16ef1465-3eb7-4732-819a-12d8548f841c",
+   "approach": "Fixture Rd Southbound",
+   "lane_ids": [
+    "1cdec3c2-5759-43c3-a136-b23e80d5314f"
+   ],
+   "sources_reporting": 0,
+   "configured_sensors": 0,
+   "status": "NOT_COMPUTABLE",
+   "reason": "FEWER_THAN_TWO_INDEPENDENT_SOURCES",
+   "explanation": "Only 0 source(s) report on this segment. A single detector cannot corroborate itself, so no incident can be detected here however strong its readings. Install a second, independent sensor.",
+   "source_assessments": []
+  }
+ ],
+ "probable_incidents": [],
+ "unattributed_sources": [],
+ "observations_excluded_invalid": 0
+}

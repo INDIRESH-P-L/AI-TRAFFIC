@@ -134,7 +134,16 @@ class WebsterOptimizer:
         movements: List[MovementDemand],
         lost_time_per_phase_sec: float = DEFAULT_LOST_TIME_PER_PHASE_SEC,
         current_cycle_sec: Optional[int] = None,
+        fixed_cycle_sec: Optional[int] = None,
     ) -> OptimizationResult:
+        """Webster cycle and splits.
+
+        `fixed_cycle_sec` allocates splits at a given cycle instead of the
+        junction's own optimum. Coordination needs this: every junction on a
+        green wave must run one common cycle - set by the critical junction -
+        and the others are timed within it. C0 is still computed and traced so
+        the gap between the imposed and the optimum cycle is visible.
+        """
         trace: List[TraceStep] = []
 
         inputs = [
@@ -225,6 +234,9 @@ class WebsterOptimizer:
         # --- C0: Webster's optimum cycle length ---------------------------
         c0 = (1.5 * lost_time + 5.0) / (1.0 - total_y)
         cycle = int(max(MIN_CYCLE_SEC, min(MAX_CYCLE_SEC, round(c0 / 5.0) * 5)))
+        optimum_cycle = cycle
+        if fixed_cycle_sec is not None:
+            cycle = int(fixed_cycle_sec)
 
         trace.append(TraceStep(
             "C0", "Webster optimum cycle length", round(c0, 1),
@@ -233,11 +245,20 @@ class WebsterOptimizer:
             ),
             "Webster 1958, RRL Technical Paper No. 39",
         ))
-        trace.append(TraceStep(
-            "C", "Practical cycle length", cycle,
-            "C = round(C0 to nearest 5s), clamped to [{}, {}]".format(MIN_CYCLE_SEC, MAX_CYCLE_SEC),
-            "practical rounding",
-        ))
+        if fixed_cycle_sec is not None:
+            trace.append(TraceStep(
+                "C", "Common corridor cycle length", cycle,
+                "C = imposed common cycle (this junction's own optimum would be {}s)".format(
+                    optimum_cycle
+                ),
+                "coordination: every junction on the green wave runs one cycle",
+            ))
+        else:
+            trace.append(TraceStep(
+                "C", "Practical cycle length", cycle,
+                "C = round(C0 to nearest 5s), clamped to [{}, {}]".format(MIN_CYCLE_SEC, MAX_CYCLE_SEC),
+                "practical rounding",
+            ))
 
         # --- Green splits proportional to flow ratio ----------------------
         effective_green_total = cycle - lost_time

@@ -492,9 +492,16 @@ def test_preemption_without_a_controller_is_rejected(auth_headers):
 # Forecasting refuses to report metrics for a model that does not exist
 # ===========================================================================
 
-def test_forecast_reports_no_registered_model_instead_of_invented_metrics(
+def test_forecast_without_history_invents_no_points_model_or_error_metrics(
     auth_headers, evp_intersection
 ):
+    """No stored history, so nothing may be drawn, fitted or measured.
+
+    Originally this pinned NO_FORECAST_MODEL_REGISTERED. The endpoint now fits a
+    real model when history allows; with no history at all the metric is
+    NOT_COMPUTABLE, and the invariant this test exists for is unchanged: no
+    forecast line, no model and no error metric appear from nothing.
+    """
     response = client.get(
         "/api/v1/predictions/forecast/" + evp_intersection, headers=auth_headers
     )
@@ -503,9 +510,11 @@ def test_forecast_reports_no_registered_model_instead_of_invented_metrics(
     body = response.json()
     assert body["forecast_points"] == []
     assert body["forecast_status"] in (
+        "NOT_COMPUTABLE",
         "INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST",
-        "NO_FORECAST_MODEL_REGISTERED",
     )
+    assert body["model"] is None
+    assert body["backtest"] is None
     assert body.get("validation_metrics") is None
 
 

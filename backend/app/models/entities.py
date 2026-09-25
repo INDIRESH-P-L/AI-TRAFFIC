@@ -400,6 +400,19 @@ class EmergencyEvent(Base):
     safety_report = Column(JSON, nullable=True)  # Full DeterministicSafetyEngine verdict
     source = Column(String(64), nullable=False)
 
+    #: MANUAL (operator request) or AVL (vehicle position feed). Both paths go
+    #: through the same Safety Engine validation and the same dispatcher.
+    trigger = Column(String(16), nullable=False, default="MANUAL")
+    #: The SignalCommand the dispatcher recorded, and its real outcome.
+    command_id = Column(String(36), nullable=True)
+    command_status = Column(String(32), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    heading_deg = Column(Float, nullable=True)
+    eta_sec = Column(Float, nullable=True)
+    position_reported_at = Column(DateTime, nullable=True)
+    details = Column(JSON, nullable=True)
+
 
 class TransitEvent(Base):
     __tablename__ = "transit_events"
@@ -413,6 +426,17 @@ class TransitEvent(Base):
     priority_granted = Column(Boolean, default=False)
     timestamp = Column(DateTime, default=utc_now)
     source = Column(String(64), default="GTFS-RT")
+
+    trip_id = Column(String(64), nullable=True)
+    #: The conditional-TSP decision and its reason, recorded for every bus
+    #: evaluated - including the ones not granted, so the record shows why.
+    decision = Column(String(48), nullable=True)
+    decision_reason = Column(Text, nullable=True)
+    command_id = Column(String(36), nullable=True)
+    distance_m = Column(Float, nullable=True)
+    bearing_deg = Column(Float, nullable=True)
+    vehicle_reported_at = Column(DateTime, nullable=True)
+    details = Column(JSON, nullable=True)
 
 
 # ==========================================
@@ -860,6 +884,44 @@ class ShiftHandover(Base):
     signed_off_by = Column(String(64), nullable=True)
     acknowledged_at = Column(DateTime, nullable=True)
     acknowledged_by = Column(String(64), nullable=True)
+
+
+class CoordinationPlan(Base):
+    """A green-wave timing plan for a corridor: proposed, validated, applied.
+
+    Stored before anything reaches a controller, so what was proposed, what the
+    Safety Engine said about it, and what each controller actually accepted
+    stay separate records. A plan that applied on two controllers and failed on
+    the third is PARTIALLY_APPLIED with each outcome listed - never summarised
+    as applied.
+    """
+
+    __tablename__ = "coordination_plans"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    corridor_id = Column(String(36), ForeignKey("corridors.id"), nullable=False, index=True)
+
+    #: PROPOSED, REJECTED_BY_SAFETY, REJECTED_AT_APPLY, APPLIED,
+    #: PARTIALLY_APPLIED, APPLY_FAILED
+    status = Column(String(32), nullable=False, default="PROPOSED")
+    direction = Column(String(16), nullable=False)
+    design_speed_kph = Column(Float, nullable=False)
+    #: OPERATOR_ENTERED or CONFIGURED_SPEED_LIMIT - never measured.
+    speed_basis = Column(String(32), nullable=False)
+    cycle_sec = Column(Integer, nullable=False)
+    cycle_basis = Column(String(48), nullable=False)
+    coord_phase = Column(Integer, nullable=False)
+
+    junction_plans = Column(JSON, nullable=False)
+    bandwidth = Column(JSON, nullable=True)
+    safety_summary = Column(JSON, nullable=True)
+    uncoordinated = Column(JSON, nullable=True)
+
+    created_by = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    applied_by = Column(String(64), nullable=True)
+    applied_at = Column(DateTime, nullable=True)
+    apply_results = Column(JSON, nullable=True)
 
 
 class PollerLease(Base):

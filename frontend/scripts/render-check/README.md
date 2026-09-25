@@ -11,8 +11,9 @@ npm run check:render
 bundle cleanly and still throw on `undefined.map`, or — the failure that matters
 for this platform — render a confident `0` where the API returned `null`.
 
-64 assertions across the trust panel, stringline, verification panel, the
-handover snapshot, and every declared empty state.
+134 assertions across the trust panel, stringline, verification panel, the
+handover snapshot, the grounded-intelligence panels (anomaly, forecast,
+fusion), and every declared empty state.
 
 ## What it asserts
 
@@ -48,3 +49,27 @@ this test — nothing here is ever served to the console.
 
 To re-capture after an API change, see `backend/tools/` and the capture snippet
 in the project CHANGELOG entry for Phase 3.
+
+- `anomaly_*.json`, `forecast_*.json`, `fusion_*.json` — produced by
+  `backend/tools/generate_intelligence_render_fixtures.py`, which runs the
+  **real** anomaly detector, forecaster and fusion detector over **test
+  telemetry** written to a throwaway SQLite database (deleted afterwards). The
+  telemetry is deterministic (SHA-256-derived variation, as in the pytest
+  suite), so the fixtures are reproducible. These are not field recordings;
+  they are the genuine response shapes for each state the panels must handle.
+  Regenerate after an API change with `python -m tools.generate_intelligence_render_fixtures`
+  from `backend/`.
+
+- `coordination_applied_live.json`, `coordination_verify_live.json` —
+  **recorded from a live run**, not generated. A green-wave plan was proposed
+  and applied through the real API to three `tools/ntcip_emulator` controllers
+  on the Avinashi Road demo corridor. After several cycles, `verify` compared
+  the plan with the offsets the platform's stringline observed (31.7 s and
+  32.6 s against a planned 32 s).
+- `coordination_not_computable.json`, `coordination_rejected_by_safety.json`,
+  `tsp_dry_run.json`, `preemption_*.json` — produced by the same generator,
+  running the real planner, TSP evaluator and preemption service. The
+  preemption verdicts are real dispatches against an in-process NTCIP emulator
+  (`ACTIVE`), a conflicting phase (`REJECTED`), and a stopped emulator
+  (`FAILED`). The TSP buses are test feed entities, encoded as genuine
+  GTFS-Realtime protobuf.

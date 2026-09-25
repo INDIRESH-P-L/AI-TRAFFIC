@@ -1,0 +1,94 @@
+{
+ "event_id": "bc4731dc-1cd0-4d02-9618-d63a885e87cb",
+ "status": "ACTIVE",
+ "requested_phase": 2,
+ "safety_clearance_passed": true,
+ "safety_report": {
+  "is_safe": true,
+  "violations": [],
+  "checks_performed": [
+   "IDEMPOTENCY_VERIFICATION",
+   "COMMAND_FRESHNESS_CHECK",
+   "CONTROLLER_STATE_VALIDATION",
+   "PHASE_CONFIGURATION_LOOKUP",
+   "ACTIVE_PHASE_MINIMUM_GREEN_CHECK",
+   "PHASE_CONFLICT_MATRIX_VALIDATION",
+   "CLEARANCE_INTERVAL_CONFLICT_CHECK",
+   "MAX_GREEN_DURATION_CHECK"
+  ],
+  "checks": [
+   {
+    "code": "IDEMPOTENCY_VERIFICATION",
+    "label": "Duplicate command",
+    "passed": true,
+    "detail": "This command has not been issued before.",
+    "standard": null
+   },
+   {
+    "code": "COMMAND_FRESHNESS_CHECK",
+    "label": "Command freshness",
+    "passed": true,
+    "detail": "Command age 0.00s is within the 5.0s window.",
+    "standard": "Stale-command protection"
+   },
+   {
+    "code": "CONTROLLER_STATE_VALIDATION",
+    "label": "Controller state readable",
+    "passed": true,
+    "detail": "Controller 'Fixture cabinet' has a live protocol session and its phase state was read.",
+    "standard": null
+   },
+   {
+    "code": "PHASE_CONFIGURATION_LOOKUP",
+    "label": "Phase configured",
+    "passed": true,
+    "detail": "Phase 2 (P2) is configured on ring 1, barrier 1.",
+    "standard": null
+   },
+   {
+    "code": "ACTIVE_PHASE_MINIMUM_GREEN_CHECK",
+    "label": "Minimum green on active phase",
+    "passed": true,
+    "detail": "No other phase is currently green, so no minimum green interval would be truncated.",
+    "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green"
+   },
+   {
+    "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+    "label": "Phase conflict matrix",
+    "passed": true,
+    "detail": "Phase 2 does not conflict with the phase currently displaying green.",
+    "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+   },
+   {
+    "code": "CLEARANCE_INTERVAL_CONFLICT_CHECK",
+    "label": "Clearance interval occupancy",
+    "passed": true,
+    "detail": "No phase is in a yellow change or all-red clearance interval.",
+    "standard": "MUTCD 4D.26 clearance intervals"
+   },
+   {
+    "code": "MAX_GREEN_DURATION_CHECK",
+    "label": "Hold duration within green envelope",
+    "passed": true,
+    "detail": "Requested 7s sits within Phase 2's 7-60s green envelope.",
+    "standard": "NEMA TS 2 green intervals"
+   }
+  ],
+  "details": {
+   "command_age_sec": 0.001743,
+   "controller_connection_status": "CONNECTED",
+   "conflicting_phases_for_target": [
+    4,
+    8
+   ],
+   "phases_in_clearance": [],
+   "requested_duration_sec": 7,
+   "phase_max_green": 60,
+   "phase_min_green": 7,
+   "safety_status": "PASSED"
+  }
+ },
+ "trigger": "MANUAL",
+ "command_id": "af86ae68-b844-4305-9f74-b54e30307083",
+ "command_status": "EXECUTED"
+}

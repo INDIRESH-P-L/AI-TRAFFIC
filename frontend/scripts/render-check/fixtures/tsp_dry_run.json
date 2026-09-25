@@ -1,0 +1,77 @@
+{
+ "status": "EVALUATED",
+ "dry_run": true,
+ "feed_timestamp": 1790319359,
+ "vehicles_in_feed": 4,
+ "trip_updates_in_feed": 3,
+ "schedule_adherence_available": true,
+ "decision_counts": {
+  "WOULD_REQUEST_GREEN_EXTENSION": 1,
+  "NOT_LATE_ENOUGH": 1,
+  "NO_SCHEDULE_ADHERENCE_DATA": 1,
+  "NO_JUNCTION_APPROACHED": 1
+ },
+ "decisions": [
+  {
+   "vehicle_id": "BUS-LATE",
+   "trip_id": "T-LATE",
+   "route_id": "R12",
+   "decision": "WOULD_REQUEST_GREEN_EXTENSION",
+   "detail": "Bus is 150s late approaching Fixture TSP Junction on phase 2, which is green: a 10s extension would be requested.",
+   "target": {
+    "intersection_id": "b92a4c4a-72b7-4849-b3a8-7cb55942d2c0",
+    "name": "Fixture TSP Junction",
+    "distance_m": 149.8,
+    "approach": "NORTHBOUND"
+   },
+   "delay_sec": 150,
+   "requested_phase": 2,
+   "hold_sec": 10
+  },
+  {
+   "vehicle_id": "BUS-ONTIME",
+   "trip_id": "T-ONTIME",
+   "route_id": "R12",
+   "decision": "NOT_LATE_ENOUGH",
+   "detail": "The bus is 15s behind schedule; priority requires at least 60s late.",
+   "target": {
+    "intersection_id": "b92a4c4a-72b7-4849-b3a8-7cb55942d2c0",
+    "name": "Fixture TSP Junction",
+    "distance_m": 159.8,
+    "approach": "NORTHBOUND"
+   },
+   "delay_sec": 15
+  },
+  {
+   "vehicle_id": "BUS-NODATA",
+   "trip_id": "T-NODATA",
+   "route_id": "R12",
+   "decision": "NO_SCHEDULE_ADHERENCE_DATA",
+   "detail": "No TripUpdate gives this bus's delay. Conditional TSP grants priority only to late buses, and lateness is unknown - so none is granted.",
+   "target": {
+    "intersection_id": "b92a4c4a-72b7-4849-b3a8-7cb55942d2c0",
+    "name": "Fixture TSP Junction",
+    "distance_m": 169.8,
+    "approach": "NORTHBOUND"
+   },
+   "delay_sec": null
+  },
+  {
+   "vehicle_id": "BUS-FAR",
+   "trip_id": "T-FAR",
+   "route_id": "R12",
+   "decision": "NO_JUNCTION_APPROACHED",
+   "detail": "No junction within 300 m ahead of the bus."
+  }
+ ],
+ "conditions": {
+  "min_lateness_sec": 60,
+  "max_position_age_sec": 30,
+  "detection_radius_m": 300.0,
+  "approach_cone_deg": 45.0,
+  "lockout_sec": 180,
+  "extension_sec": 10,
+  "state_freshness_sec": 10
+ },
+ "note": "Dry run: nothing was sent and nothing was recorded."
+}

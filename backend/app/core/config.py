@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "trafficintel@localhost"
     SMTP_USE_TLS: bool = True
 
+    # GTFS-Realtime transit feeds (protobuf). Empty = not configured; the
+    # platform then reports TRANSIT_FEED_NOT_CONFIGURED and never simulates a bus.
+    GTFS_RT_VEHICLE_POSITIONS_URL: str = ""
+    GTFS_RT_TRIP_UPDATES_URL: str = ""
+    GTFS_RT_API_KEY_HEADER: str = ""
+    GTFS_RT_API_KEY: str = ""
+    GTFS_RT_TIMEOUT_SEC: float = 5.0
+
     # Weather Provider
     OPEN_METEO_API_URL: str = "https://api.open-meteo.com/v1/forecast"
     

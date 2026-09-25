@@ -1,0 +1,27 @@
+{
+ "status": "OBSERVED_AS_PLANNED",
+ "plan_id": "eeb9cbb2-791a-4ebd-ba54-384904305a63",
+ "segments": [
+  {
+   "from": "Avinashi Rd @ Hope College",
+   "to": "Avinashi Rd @ Peelamedu",
+   "planned_offset_sec": 32,
+   "observed_median_offset_sec": 31.71,
+   "difference_sec": 0.29,
+   "tolerance_sec": 5.04,
+   "status": "OBSERVED_AS_PLANNED"
+  },
+  {
+   "from": "Avinashi Rd @ Peelamedu",
+   "to": "Avinashi Rd @ Airport Gate",
+   "planned_offset_sec": 32,
+   "observed_median_offset_sec": 32.64,
+   "difference_sec": 0.64,
+   "tolerance_sec": 5.04,
+   "status": "OBSERVED_AS_PLANNED"
+  }
+ ],
+ "stringline_status": "COMPUTED",
+ "detail": "Every adjacent pair's observed offset matches the plan.",
+ "basis": "Offsets measured by the stringline from polled signal state, not read from the plan."
+}

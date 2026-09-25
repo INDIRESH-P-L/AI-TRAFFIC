@@ -1,0 +1,27 @@
+{
+ "corridor_id": "3cb950f0-866d-41af-903e-52890ef38828",
+ "corridor_name": "CoordNC",
+ "method_version": "green-wave-webster-v1",
+ "direction": "ASCENDING",
+ "coord_phase": 2,
+ "status": "NOT_COMPUTABLE",
+ "reason": "FEWER_THAN_TWO_COORDINATABLE_CONTROLLERS",
+ "detail": "A green wave needs at least two junctions whose controllers speak NTCIP 1202 and are CONNECTED, so that their timing can actually be set and read back. This corridor has 1.",
+ "junction_count": 3,
+ "uncoordinated": [
+  {
+   "intersection_id": "e4ac1a77-9778-4d41-88d2-bd2eb66c8884",
+   "name": "CoordNC J2",
+   "position_m": 444.8,
+   "controller_id": null,
+   "reason": "NO_CONTROLLER"
+  },
+  {
+   "intersection_id": "3e7d8e55-4910-44ad-874d-8e47b313ac83",
+   "name": "CoordNC J3",
+   "position_m": 889.6,
+   "controller_id": "9c9e0256-7c03-409b-9cce-57705e8a2028",
+   "reason": "PROTOCOL_HAS_NO_TIMING_PLAN_CHANNEL"
+  }
+ ]
+}

@@ -1,0 +1,744 @@
+{
+ "plan_id": "eeb9cbb2-791a-4ebd-ba54-384904305a63",
+ "corridor_id": "b0aa8db8-7ca3-46e1-94ef-75303153cf74",
+ "status": "APPLIED",
+ "direction": "ASCENDING",
+ "design_speed_kph": 50.0,
+ "speed_basis": "OPERATOR_ENTERED",
+ "cycle_sec": 60,
+ "cycle_basis": "MINIMUM_FEASIBLE (Avinashi Rd @ Hope College)",
+ "coord_phase": 2,
+ "junction_plans": [
+  {
+   "intersection_id": "afc390e2-9cb0-497f-9760-88c122289c5d",
+   "name": "Avinashi Rd @ Hope College",
+   "controller_id": "07f64154-36b6-447d-a562-303b30bb6903",
+   "position_m": 0.0,
+   "travel_time_from_origin_sec": 0.0,
+   "offset_sec": 0,
+   "cycle_sec": 60,
+   "coord_phase": 2,
+   "coordinated_green_sec": 26,
+   "splits": {
+    "2": 32,
+    "4": 28,
+    "6": 32,
+    "8": 28
+   },
+   "own_optimum_cycle_sec": 40,
+   "minimum_feasible_cycle_sec": 60,
+   "demand_source": "OPERATOR_ENTERED",
+   "webster_trace": [
+    {
+     "symbol": "y_i",
+     "label": "Flow ratio per critical movement",
+     "value": {
+      "Barrier 1 critical": 0.2368,
+      "Barrier 2 critical": 0.1842
+     },
+     "formula": "y = q / s",
+     "source": "measured or operator-entered volume / saturation flow"
+    },
+    {
+     "symbol": "Y",
+     "label": "Sum of critical flow ratios",
+     "value": 0.4211,
+     "formula": "Y = sum(y_i)",
+     "source": "derived"
+    },
+    {
+     "symbol": "L",
+     "label": "Total lost time per cycle",
+     "value": 12.0,
+     "formula": "L = 6.0 s/phase x 2 phases",
+     "source": "HCM default startup + clearance lost time"
+    },
+    {
+     "symbol": "C0",
+     "label": "Webster optimum cycle length",
+     "value": 39.7,
+     "formula": "C0 = (1.5L + 5) / (1 - Y) = (1.5 x 12.0 + 5) / (1 - 0.4211)",
+     "source": "Webster 1958, RRL Technical Paper No. 39"
+    },
+    {
+     "symbol": "C",
+     "label": "Common corridor cycle length",
+     "value": 60,
+     "formula": "C = imposed common cycle (this junction's own optimum would be 40s)",
+     "source": "coordination: every junction on the green wave runs one cycle"
+    },
+    {
+     "symbol": "g_i",
+     "label": "Effective green per phase",
+     "value": {
+      "Barrier 1 critical": 26.4,
+      "Barrier 2 critical": 22
+     },
+     "formula": "g_i = (C - L) x y_i / Y, clamped to [min_green, max_green]",
+     "source": "Webster split allocation, bounded by controller configuration"
+    },
+    {
+     "symbol": "x_i",
+     "label": "Degree of saturation (v/c) per movement",
+     "value": {
+      "Barrier 1 critical": 0.537,
+      "Barrier 2 critical": 0.502
+     },
+     "formula": "x = q / (s x g/C)",
+     "source": "HCM 6th ed. capacity relationship"
+    },
+    {
+     "symbol": "d",
+     "label": "Webster delay per movement",
+     "value": {
+      "Barrier 1 critical": 13.5,
+      "Barrier 2 critical": 17.4
+     },
+     "formula": "d = C(1-g/C)^2 / (2(1-(g/C)x)) + x^2 / (2q(1-x))",
+     "source": "Webster 1958 uniform + random delay"
+    }
+   ]
+  },
+  {
+   "intersection_id": "15eda842-647b-4fcf-a367-be370b3a8abd",
+   "name": "Avinashi Rd @ Peelamedu",
+   "controller_id": "7fad8fdd-681f-4c06-8a03-18cb2cd0b08f",
+   "position_m": 444.8,
+   "travel_time_from_origin_sec": 32.0,
+   "offset_sec": 32,
+   "cycle_sec": 60,
+   "coord_phase": 2,
+   "coordinated_green_sec": 26,
+   "splits": {
+    "2": 32,
+    "4": 28,
+    "6": 32,
+    "8": 28
+   },
+   "own_optimum_cycle_sec": 40,
+   "minimum_feasible_cycle_sec": 60,
+   "demand_source": "OPERATOR_ENTERED",
+   "webster_trace": [
+    {
+     "symbol": "y_i",
+     "label": "Flow ratio per critical movement",
+     "value": {
+      "Barrier 1 critical": 0.2368,
+      "Barrier 2 critical": 0.1842
+     },
+     "formula": "y = q / s",
+     "source": "measured or operator-entered volume / saturation flow"
+    },
+    {
+     "symbol": "Y",
+     "label": "Sum of critical flow ratios",
+     "value": 0.4211,
+     "formula": "Y = sum(y_i)",
+     "source": "derived"
+    },
+    {
+     "symbol": "L",
+     "label": "Total lost time per cycle",
+     "value": 12.0,
+     "formula": "L = 6.0 s/phase x 2 phases",
+     "source": "HCM default startup + clearance lost time"
+    },
+    {
+     "symbol": "C0",
+     "label": "Webster optimum cycle length",
+     "value": 39.7,
+     "formula": "C0 = (1.5L + 5) / (1 - Y) = (1.5 x 12.0 + 5) / (1 - 0.4211)",
+     "source": "Webster 1958, RRL Technical Paper No. 39"
+    },
+    {
+     "symbol": "C",
+     "label": "Common corridor cycle length",
+     "value": 60,
+     "formula": "C = imposed common cycle (this junction's own optimum would be 40s)",
+     "source": "coordination: every junction on the green wave runs one cycle"
+    },
+    {
+     "symbol": "g_i",
+     "label": "Effective green per phase",
+     "value": {
+      "Barrier 1 critical": 26.4,
+      "Barrier 2 critical": 22
+     },
+     "formula": "g_i = (C - L) x y_i / Y, clamped to [min_green, max_green]",
+     "source": "Webster split allocation, bounded by controller configuration"
+    },
+    {
+     "symbol": "x_i",
+     "label": "Degree of saturation (v/c) per movement",
+     "value": {
+      "Barrier 1 critical": 0.537,
+      "Barrier 2 critical": 0.502
+     },
+     "formula": "x = q / (s x g/C)",
+     "source": "HCM 6th ed. capacity relationship"
+    },
+    {
+     "symbol": "d",
+     "label": "Webster delay per movement",
+     "value": {
+      "Barrier 1 critical": 13.5,
+      "Barrier 2 critical": 17.4
+     },
+     "formula": "d = C(1-g/C)^2 / (2(1-(g/C)x)) + x^2 / (2q(1-x))",
+     "source": "Webster 1958 uniform + random delay"
+    }
+   ]
+  },
+  {
+   "intersection_id": "c5ce40b0-0151-4027-a18b-4da6e192fb49",
+   "name": "Avinashi Rd @ Airport Gate",
+   "controller_id": "bf36cb3c-efe3-478c-8288-4da68573850d",
+   "position_m": 889.6,
+   "travel_time_from_origin_sec": 64.1,
+   "offset_sec": 4,
+   "cycle_sec": 60,
+   "coord_phase": 2,
+   "coordinated_green_sec": 26,
+   "splits": {
+    "2": 32,
+    "4": 28,
+    "6": 32,
+    "8": 28
+   },
+   "own_optimum_cycle_sec": 40,
+   "minimum_feasible_cycle_sec": 60,
+   "demand_source": "OPERATOR_ENTERED",
+   "webster_trace": [
+    {
+     "symbol": "y_i",
+     "label": "Flow ratio per critical movement",
+     "value": {
+      "Barrier 1 critical": 0.2368,
+      "Barrier 2 critical": 0.1842
+     },
+     "formula": "y = q / s",
+     "source": "measured or operator-entered volume / saturation flow"
+    },
+    {
+     "symbol": "Y",
+     "label": "Sum of critical flow ratios",
+     "value": 0.4211,
+     "formula": "Y = sum(y_i)",
+     "source": "derived"
+    },
+    {
+     "symbol": "L",
+     "label": "Total lost time per cycle",
+     "value": 12.0,
+     "formula": "L = 6.0 s/phase x 2 phases",
+     "source": "HCM default startup + clearance lost time"
+    },
+    {
+     "symbol": "C0",
+     "label": "Webster optimum cycle length",
+     "value": 39.7,
+     "formula": "C0 = (1.5L + 5) / (1 - Y) = (1.5 x 12.0 + 5) / (1 - 0.4211)",
+     "source": "Webster 1958, RRL Technical Paper No. 39"
+    },
+    {
+     "symbol": "C",
+     "label": "Common corridor cycle length",
+     "value": 60,
+     "formula": "C = imposed common cycle (this junction's own optimum would be 40s)",
+     "source": "coordination: every junction on the green wave runs one cycle"
+    },
+    {
+     "symbol": "g_i",
+     "label": "Effective green per phase",
+     "value": {
+      "Barrier 1 critical": 26.4,
+      "Barrier 2 critical": 22
+     },
+     "formula": "g_i = (C - L) x y_i / Y, clamped to [min_green, max_green]",
+     "source": "Webster split allocation, bounded by controller configuration"
+    },
+    {
+     "symbol": "x_i",
+     "label": "Degree of saturation (v/c) per movement",
+     "value": {
+      "Barrier 1 critical": 0.537,
+      "Barrier 2 critical": 0.502
+     },
+     "formula": "x = q / (s x g/C)",
+     "source": "HCM 6th ed. capacity relationship"
+    },
+    {
+     "symbol": "d",
+     "label": "Webster delay per movement",
+     "value": {
+      "Barrier 1 critical": 13.5,
+      "Barrier 2 critical": 17.4
+     },
+     "formula": "d = C(1-g/C)^2 / (2(1-(g/C)x)) + x^2 / (2q(1-x))",
+     "source": "Webster 1958 uniform + random delay"
+    }
+   ]
+  }
+ ],
+ "bandwidth": {
+  "design_direction_sec": 26.0,
+  "design_direction_efficiency": 0.433,
+  "opposite_direction_sec": 18.0,
+  "opposite_direction_efficiency": 0.3,
+  "narrowest_coordinated_green_sec": 26,
+  "basis": "Computed at 0.1s resolution from the planned offsets and coordinated-phase greens, assuming vehicles travel at the design speed. Optimising one direction usually narrows the other; both are reported."
+ },
+ "safety": {
+  "all_passed": true,
+  "per_junction": [
+   {
+    "intersection_id": "afc390e2-9cb0-497f-9760-88c122289c5d",
+    "name": "Avinashi Rd @ Hope College",
+    "is_safe": true,
+    "violations": [],
+    "checks": [
+     {
+      "code": "IDEMPOTENCY_VERIFICATION",
+      "label": "Duplicate command",
+      "passed": true,
+      "detail": "This timing plan has not been issued before.",
+      "standard": null
+     },
+     {
+      "code": "COMMAND_FRESHNESS_CHECK",
+      "label": "Command freshness",
+      "passed": true,
+      "detail": "Plan age 0.00s is within the 5.0s window.",
+      "standard": "Stale-command protection"
+     },
+     {
+      "code": "CONTROLLER_STATE_VALIDATION",
+      "label": "Controller state readable",
+      "passed": true,
+      "detail": "Controller 'Avinashi Rd @ Hope College cabinet' has a live protocol session.",
+      "standard": null
+     },
+     {
+      "code": "CONTROLLER_CAPABILITY_CHECK",
+      "label": "Timing plan channel",
+      "passed": true,
+      "detail": "Protocol NTCIP_1202 has an implemented timing-plan channel.",
+      "standard": null
+     },
+     {
+      "code": "CYCLE_LENGTH_BOUNDS",
+      "label": "Cycle length within bounds",
+      "passed": true,
+      "detail": "Cycle 60s is within [30, 180]s.",
+      "standard": null
+     },
+     {
+      "code": "OFFSET_RANGE_CHECK",
+      "label": "Offset within cycle",
+      "passed": true,
+      "detail": "Offset 0s lies within the 60s cycle.",
+      "standard": null
+     },
+     {
+      "code": "PHASE_CONFIGURATION_LOOKUP",
+      "label": "Splits match configured phases",
+      "passed": true,
+      "detail": "Every configured phase has a split and no split names an unknown phase.",
+      "standard": null
+     },
+     {
+      "code": "COORDINATED_PHASE_CHECK",
+      "label": "Coordinated phase present",
+      "passed": true,
+      "detail": "Coordinated phase 2 has a split.",
+      "standard": null
+     },
+     {
+      "code": "SPLIT_CLEARANCE_CHECK",
+      "label": "Splits allow minimum green and clearance",
+      "passed": true,
+      "detail": "Every split covers minimum green, yellow change and all-red clearance.",
+      "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green and clearance"
+     },
+     {
+      "code": "MAX_GREEN_DURATION_CHECK",
+      "label": "Split green within maximum green",
+      "passed": true,
+      "detail": "No split's green exceeds the phase's configured maximum green.",
+      "standard": "NEMA TS 2 maximum green"
+     },
+     {
+      "code": "PEDESTRIAN_CLEARANCE_CHECK",
+      "label": "Pedestrian walk and clearance fit",
+      "passed": true,
+      "detail": "Every split's green accommodates its configured walk and pedestrian clearance.",
+      "standard": "MUTCD 4E.06 pedestrian intervals"
+     },
+     {
+      "code": "RING_SUM_CHECK",
+      "label": "Each ring sums to the cycle",
+      "passed": true,
+      "detail": "Ring totals {1: 60, 2: 60} each equal the 60s cycle.",
+      "standard": "NEMA TS 2 dual-ring structure"
+     },
+     {
+      "code": "BARRIER_ALIGNMENT_CHECK",
+      "label": "Rings cross each barrier together",
+      "passed": true,
+      "detail": "Both rings spend the same time in every barrier group, so neither crosses a barrier while the other is still green in the previous group.",
+      "standard": "NEMA TS 2 dual-ring barrier"
+     },
+     {
+      "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+      "label": "Concurrent phases are compatible",
+      "passed": true,
+      "detail": "No pair of phases this plan runs concurrently is declared conflicting.",
+      "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+     }
+    ]
+   },
+   {
+    "intersection_id": "15eda842-647b-4fcf-a367-be370b3a8abd",
+    "name": "Avinashi Rd @ Peelamedu",
+    "is_safe": true,
+    "violations": [],
+    "checks": [
+     {
+      "code": "IDEMPOTENCY_VERIFICATION",
+      "label": "Duplicate command",
+      "passed": true,
+      "detail": "This timing plan has not been issued before.",
+      "standard": null
+     },
+     {
+      "code": "COMMAND_FRESHNESS_CHECK",
+      "label": "Command freshness",
+      "passed": true,
+      "detail": "Plan age 0.00s is within the 5.0s window.",
+      "standard": "Stale-command protection"
+     },
+     {
+      "code": "CONTROLLER_STATE_VALIDATION",
+      "label": "Controller state readable",
+      "passed": true,
+      "detail": "Controller 'Avinashi Rd @ Peelamedu cabinet' has a live protocol session.",
+      "standard": null
+     },
+     {
+      "code": "CONTROLLER_CAPABILITY_CHECK",
+      "label": "Timing plan channel",
+      "passed": true,
+      "detail": "Protocol NTCIP_1202 has an implemented timing-plan channel.",
+      "standard": null
+     },
+     {
+      "code": "CYCLE_LENGTH_BOUNDS",
+      "label": "Cycle length within bounds",
+      "passed": true,
+      "detail": "Cycle 60s is within [30, 180]s.",
+      "standard": null
+     },
+     {
+      "code": "OFFSET_RANGE_CHECK",
+      "label": "Offset within cycle",
+      "passed": true,
+      "detail": "Offset 32s lies within the 60s cycle.",
+      "standard": null
+     },
+     {
+      "code": "PHASE_CONFIGURATION_LOOKUP",
+      "label": "Splits match configured phases",
+      "passed": true,
+      "detail": "Every configured phase has a split and no split names an unknown phase.",
+      "standard": null
+     },
+     {
+      "code": "COORDINATED_PHASE_CHECK",
+      "label": "Coordinated phase present",
+      "passed": true,
+      "detail": "Coordinated phase 2 has a split.",
+      "standard": null
+     },
+     {
+      "code": "SPLIT_CLEARANCE_CHECK",
+      "label": "Splits allow minimum green and clearance",
+      "passed": true,
+      "detail": "Every split covers minimum green, yellow change and all-red clearance.",
+      "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green and clearance"
+     },
+     {
+      "code": "MAX_GREEN_DURATION_CHECK",
+      "label": "Split green within maximum green",
+      "passed": true,
+      "detail": "No split's green exceeds the phase's configured maximum green.",
+      "standard": "NEMA TS 2 maximum green"
+     },
+     {
+      "code": "PEDESTRIAN_CLEARANCE_CHECK",
+      "label": "Pedestrian walk and clearance fit",
+      "passed": true,
+      "detail": "Every split's green accommodates its configured walk and pedestrian clearance.",
+      "standard": "MUTCD 4E.06 pedestrian intervals"
+     },
+     {
+      "code": "RING_SUM_CHECK",
+      "label": "Each ring sums to the cycle",
+      "passed": true,
+      "detail": "Ring totals {1: 60, 2: 60} each equal the 60s cycle.",
+      "standard": "NEMA TS 2 dual-ring structure"
+     },
+     {
+      "code": "BARRIER_ALIGNMENT_CHECK",
+      "label": "Rings cross each barrier together",
+      "passed": true,
+      "detail": "Both rings spend the same time in every barrier group, so neither crosses a barrier while the other is still green in the previous group.",
+      "standard": "NEMA TS 2 dual-ring barrier"
+     },
+     {
+      "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+      "label": "Concurrent phases are compatible",
+      "passed": true,
+      "detail": "No pair of phases this plan runs concurrently is declared conflicting.",
+      "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+     }
+    ]
+   },
+   {
+    "intersection_id": "c5ce40b0-0151-4027-a18b-4da6e192fb49",
+    "name": "Avinashi Rd @ Airport Gate",
+    "is_safe": true,
+    "violations": [],
+    "checks": [
+     {
+      "code": "IDEMPOTENCY_VERIFICATION",
+      "label": "Duplicate command",
+      "passed": true,
+      "detail": "This timing plan has not been issued before.",
+      "standard": null
+     },
+     {
+      "code": "COMMAND_FRESHNESS_CHECK",
+      "label": "Command freshness",
+      "passed": true,
+      "detail": "Plan age 0.00s is within the 5.0s window.",
+      "standard": "Stale-command protection"
+     },
+     {
+      "code": "CONTROLLER_STATE_VALIDATION",
+      "label": "Controller state readable",
+      "passed": true,
+      "detail": "Controller 'Avinashi Rd @ Airport Gate cabinet' has a live protocol session.",
+      "standard": null
+     },
+     {
+      "code": "CONTROLLER_CAPABILITY_CHECK",
+      "label": "Timing plan channel",
+      "passed": true,
+      "detail": "Protocol NTCIP_1202 has an implemented timing-plan channel.",
+      "standard": null
+     },
+     {
+      "code": "CYCLE_LENGTH_BOUNDS",
+      "label": "Cycle length within bounds",
+      "passed": true,
+      "detail": "Cycle 60s is within [30, 180]s.",
+      "standard": null
+     },
+     {
+      "code": "OFFSET_RANGE_CHECK",
+      "label": "Offset within cycle",
+      "passed": true,
+      "detail": "Offset 4s lies within the 60s cycle.",
+      "standard": null
+     },
+     {
+      "code": "PHASE_CONFIGURATION_LOOKUP",
+      "label": "Splits match configured phases",
+      "passed": true,
+      "detail": "Every configured phase has a split and no split names an unknown phase.",
+      "standard": null
+     },
+     {
+      "code": "COORDINATED_PHASE_CHECK",
+      "label": "Coordinated phase present",
+      "passed": true,
+      "detail": "Coordinated phase 2 has a split.",
+      "standard": null
+     },
+     {
+      "code": "SPLIT_CLEARANCE_CHECK",
+      "label": "Splits allow minimum green and clearance",
+      "passed": true,
+      "detail": "Every split covers minimum green, yellow change and all-red clearance.",
+      "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green and clearance"
+     },
+     {
+      "code": "MAX_GREEN_DURATION_CHECK",
+      "label": "Split green within maximum green",
+      "passed": true,
+      "detail": "No split's green exceeds the phase's configured maximum green.",
+      "standard": "NEMA TS 2 maximum green"
+     },
+     {
+      "code": "PEDESTRIAN_CLEARANCE_CHECK",
+      "label": "Pedestrian walk and clearance fit",
+      "passed": true,
+      "detail": "Every split's green accommodates its configured walk and pedestrian clearance.",
+      "standard": "MUTCD 4E.06 pedestrian intervals"
+     },
+     {
+      "code": "RING_SUM_CHECK",
+      "label": "Each ring sums to the cycle",
+      "passed": true,
+      "detail": "Ring totals {1: 60, 2: 60} each equal the 60s cycle.",
+      "standard": "NEMA TS 2 dual-ring structure"
+     },
+     {
+      "code": "BARRIER_ALIGNMENT_CHECK",
+      "label": "Rings cross each barrier together",
+      "passed": true,
+      "detail": "Both rings spend the same time in every barrier group, so neither crosses a barrier while the other is still green in the previous group.",
+      "standard": "NEMA TS 2 dual-ring barrier"
+     },
+     {
+      "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+      "label": "Concurrent phases are compatible",
+      "passed": true,
+      "detail": "No pair of phases this plan runs concurrently is declared conflicting.",
+      "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+     }
+    ]
+   }
+  ]
+ },
+ "uncoordinated": [],
+ "created_by": "admin",
+ "created_at": "2026-09-25T06:48:34.738034",
+ "applied_by": "admin",
+ "applied_at": "2026-09-25T06:48:34.794016",
+ "apply_results": {
+  "preflight": [
+   {
+    "name": "Avinashi Rd @ Hope College",
+    "is_safe": true,
+    "violations": []
+   },
+   {
+    "name": "Avinashi Rd @ Peelamedu",
+    "is_safe": true,
+    "violations": []
+   },
+   {
+    "name": "Avinashi Rd @ Airport Gate",
+    "is_safe": true,
+    "violations": []
+   }
+  ],
+  "dispatched": [
+   {
+    "intersection_id": "afc390e2-9cb0-497f-9760-88c122289c5d",
+    "name": "Avinashi Rd @ Hope College",
+    "command_id": "39969375-07dd-4a59-8d1a-499a11590bec",
+    "status": "EXECUTED",
+    "acknowledgement": "Controller acknowledged timing plan 1 (12 varbinds)",
+    "readback_matches": true,
+    "readback": {
+     "readable": true,
+     "cycle_sec": 60,
+     "offset_sec": 0,
+     "active_pattern": 1,
+     "position_in_cycle_sec": 34,
+     "splits": {
+      "2": 32,
+      "4": 28,
+      "6": 32,
+      "8": 28
+     },
+     "matches_request": true,
+     "expected": {
+      "cycle_sec": 60,
+      "offset_sec": 0,
+      "splits": {
+       "2": 32,
+       "4": 28,
+       "6": 32,
+       "8": 28
+      },
+      "active_pattern": 1
+     }
+    },
+    "violations": []
+   },
+   {
+    "intersection_id": "15eda842-647b-4fcf-a367-be370b3a8abd",
+    "name": "Avinashi Rd @ Peelamedu",
+    "command_id": "eea30395-9ac6-4242-ac12-342d8176107e",
+    "status": "EXECUTED",
+    "acknowledgement": "Controller acknowledged timing plan 1 (12 varbinds)",
+    "readback_matches": true,
+    "readback": {
+     "readable": true,
+     "cycle_sec": 60,
+     "offset_sec": 32,
+     "active_pattern": 1,
+     "position_in_cycle_sec": 2,
+     "splits": {
+      "2": 32,
+      "4": 28,
+      "6": 32,
+      "8": 28
+     },
+     "matches_request": true,
+     "expected": {
+      "cycle_sec": 60,
+      "offset_sec": 32,
+      "splits": {
+       "2": 32,
+       "4": 28,
+       "6": 32,
+       "8": 28
+      },
+      "active_pattern": 1
+     }
+    },
+    "violations": []
+   },
+   {
+    "intersection_id": "c5ce40b0-0151-4027-a18b-4da6e192fb49",
+    "name": "Avinashi Rd @ Airport Gate",
+    "command_id": "70ca30cc-2717-494c-82fd-20e85bdab111",
+    "status": "EXECUTED",
+    "acknowledgement": "Controller acknowledged timing plan 1 (12 varbinds)",
+    "readback_matches": true,
+    "readback": {
+     "readable": true,
+     "cycle_sec": 60,
+     "offset_sec": 4,
+     "active_pattern": 1,
+     "position_in_cycle_sec": 30,
+     "splits": {
+      "2": 32,
+      "4": 28,
+      "6": 32,
+      "8": 28
+     },
+     "matches_request": true,
+     "expected": {
+      "cycle_sec": 60,
+      "offset_sec": 4,
+      "splits": {
+       "2": 32,
+       "4": 28,
+       "6": 32,
+       "8": 28
+      },
+      "active_pattern": 1
+     }
+    },
+    "violations": []
+   }
+  ]
+ },
+ "time_reference_note": "Offsets assume the controllers share a synchronised time reference (GPS or NTP). The platform cannot verify controller clock sync; use /coordination/plans/{id}/verify after applying to compare planned offsets with those the stringline observes.",
+ "method_version": "green-wave-webster-v1"
+}

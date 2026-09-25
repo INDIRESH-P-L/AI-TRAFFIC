@@ -23,7 +23,12 @@ def list_corridors(db: Session = Depends(get_db), current_user: User = Depends(g
             "description": c.description,
             "coordination_mode": c.coordination_mode,
             "cycle_length_sec": c.cycle_length_sec,
-            "intersection_count": len(c.intersections)
+            "intersection_count": len(c.intersections),
+            # Ordered as the stringline and the green-wave planner order them.
+            "intersections": [
+                {"id": i.id, "name": i.name}
+                for i in sorted(c.intersections, key=lambda i: (i.latitude, i.longitude))
+            ],
         })
     return res
 

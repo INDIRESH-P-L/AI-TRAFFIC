@@ -29,6 +29,8 @@ import {
   Gauge,
   Waves,
   ClipboardList,
+  Brain,
+  GitMerge,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useConsole } from '../context/ConsoleContext';
@@ -218,6 +220,8 @@ export const Layout: React.FC = () => {
     if (pathname.startsWith('/data-trust')) return { title: 'Data Trust & Change Verification', section: 'INTELLIGENCE' };
     if (pathname.startsWith('/stringline')) return { title: 'Corridor Stringline (Time-Space Diagram)', section: 'INTELLIGENCE' };
     if (pathname.startsWith('/handover')) return { title: 'Shift Handover', section: 'OPERATIONS' };
+    if (pathname.startsWith('/intelligence')) return { title: 'Grounded Intelligence', section: 'INTELLIGENCE' };
+    if (pathname.startsWith('/coordination')) return { title: 'Arterial Coordination', section: 'INTELLIGENCE' };
     return { title: 'Traffic Operations Platform', section: 'TOC OPERATIONS' };
   };
 
@@ -285,6 +289,14 @@ export const Layout: React.FC = () => {
           <NavLink to="/alert-rules" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Alert & rules engine">
             <BellRing size={16} />
             <span>Alert Rules</span>
+          </NavLink>
+          <NavLink to="/coordination" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Green-wave coordination plans">
+            <GitMerge size={16} />
+            <span>Arterial Coordination</span>
+          </NavLink>
+          <NavLink to="/intelligence" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Anomalies, forecasts and corroborated incident detection">
+            <Brain size={16} />
+            <span>Grounded Intelligence</span>
           </NavLink>
           <NavLink to="/data-trust" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Data trust score & post-change verification">
             <Gauge size={16} />

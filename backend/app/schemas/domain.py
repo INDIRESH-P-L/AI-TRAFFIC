@@ -382,11 +382,16 @@ class PreemptionResponse(BaseModel):
     vehicle_id: str
     vehicle_type: str
     requested_phase: int
-    status: str  # ACTIVE, REJECTED
+    #: ACTIVE (controller acknowledged), REJECTED (Safety Engine refused; nothing
+    #: sent) or FAILED (validated, but the controller did not acknowledge).
+    status: str
     safety_clearance_passed: bool
     safety_report: SafetyCheckResult
     controller_id: Optional[str] = None
     timestamp: datetime
+    trigger: str = "MANUAL"
+    command_id: Optional[str] = None
+    command_status: Optional[str] = None
 
 
 class SignalCommandPreview(BaseModel):

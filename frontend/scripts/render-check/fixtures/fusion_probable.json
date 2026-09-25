@@ -1,0 +1,207 @@
+{
+ "intersection_id": "bc5812b0-deb9-4b05-90a4-48c63b2f240b",
+ "intersection_name": "Fixture FU-PROBABLE",
+ "as_of": "2026-03-10T14:00:00",
+ "recent_window": [
+  "2026-03-10T13:50:00",
+  "2026-03-10T14:00:00"
+ ],
+ "baseline_window": [
+  "2026-03-10T12:50:00",
+  "2026-03-10T13:50:00"
+ ],
+ "thresholds": {
+  "min_independent_sources": 2,
+  "min_occupancy_rise_pct_points": 15.0,
+  "min_speed_drop_fraction": 0.3,
+  "min_samples_per_side": 8,
+  "confidence_level": 0.95
+ },
+ "method_version": "fusion-v1",
+ "independence_basis": "Sources are independent when their reporting identities differ (source_id, or source where no id was recorded). Two identities fed by one physical device would be counted twice; the platform cannot detect that.",
+ "status": "PROBABLE_INCIDENT",
+ "detail": "1 segment(s) show a corroborated incident signature. Not evaluated: Fixture Rd Southbound (FEWER_THAN_TWO_INDEPENDENT_SOURCES). No incident can be detected on those segments, which is not the same as none occurring.",
+ "segments": [
+  {
+   "approach_id": "ba17f77e-a542-4cb7-9e8b-cf4f0e868e3e",
+   "approach": "Fixture Rd Northbound",
+   "lane_ids": [
+    "1e1cd3bc-91fe-4af9-83fe-1070b0bbbc39",
+    "07d0687f-5a9f-4b82-9294-69c3feb2049e"
+   ],
+   "sources_reporting": 2,
+   "configured_sensors": 0,
+   "status": "PROBABLE_INCIDENT",
+   "reason": null,
+   "explanation": "Occupancy spike (nb-loop-1) and speed drop (nb-radar-2) corroborated by 2 independent sources.",
+   "source_assessments": [
+    {
+     "source": "nb-loop-1",
+     "sensor_kind": "INDUCTIVE_LOOP",
+     "evaluable": true,
+     "occupancy_spike": true,
+     "speed_drop": null,
+     "occupancy": {
+      "status": "EVALUATED",
+      "before_mean": 12.12,
+      "after_mean": 45.24,
+      "difference": 33.11,
+      "ci_low": 31.4,
+      "ci_high": 34.83,
+      "before_samples": 60,
+      "after_samples": 10
+     },
+     "speed": {
+      "status": "NOT_MEASURED",
+      "detail": "This source does not report this channel."
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "ef6abe2c-7ac3-4f88-bd55-72f361ae978b",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    },
+    {
+     "source": "nb-radar-2",
+     "sensor_kind": "RADAR",
+     "evaluable": true,
+     "occupancy_spike": null,
+     "speed_drop": true,
+     "occupancy": {
+      "status": "NOT_MEASURED",
+      "detail": "This source does not report this channel."
+     },
+     "speed": {
+      "status": "EVALUATED",
+      "before_mean": 47.88,
+      "after_mean": 18.55,
+      "difference": -29.32,
+      "ci_low": -30.76,
+      "ci_high": -27.89,
+      "before_samples": 60,
+      "after_samples": 10,
+      "drop_fraction": 0.6124
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "a95b2c23-1956-4edc-a563-5d6a20a13efc",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    }
+   ],
+   "occupancy_spike_sources": [
+    "nb-loop-1"
+   ],
+   "speed_drop_sources": [
+    "nb-radar-2"
+   ],
+   "corroborating_sources": [
+    "nb-loop-1",
+    "nb-radar-2"
+   ],
+   "evaluated_but_not_corroborating": [],
+   "corroboration_ratio": 1.0,
+   "corroboration_ratio_basis": "Share of evaluable sources on this segment showing a symptom. A measure of agreement between sensors, not a probability that an incident is occurring."
+  },
+  {
+   "approach_id": "f994845f-d868-418c-930e-4154e0d3091a",
+   "approach": "Fixture Rd Southbound",
+   "lane_ids": [
+    "69582328-1a1e-4a8f-9986-8f9aee1ff9de"
+   ],
+   "sources_reporting": 1,
+   "configured_sensors": 0,
+   "status": "NOT_COMPUTABLE",
+   "reason": "FEWER_THAN_TWO_INDEPENDENT_SOURCES",
+   "explanation": "Only 1 source(s) report on this segment. A single detector cannot corroborate itself, so no incident can be detected here however strong its readings. Install a second, independent sensor.",
+   "source_assessments": []
+  }
+ ],
+ "probable_incidents": [
+  {
+   "approach_id": "ba17f77e-a542-4cb7-9e8b-cf4f0e868e3e",
+   "approach": "Fixture Rd Northbound",
+   "lane_ids": [
+    "1e1cd3bc-91fe-4af9-83fe-1070b0bbbc39",
+    "07d0687f-5a9f-4b82-9294-69c3feb2049e"
+   ],
+   "sources_reporting": 2,
+   "configured_sensors": 0,
+   "status": "PROBABLE_INCIDENT",
+   "reason": null,
+   "explanation": "Occupancy spike (nb-loop-1) and speed drop (nb-radar-2) corroborated by 2 independent sources.",
+   "source_assessments": [
+    {
+     "source": "nb-loop-1",
+     "sensor_kind": "INDUCTIVE_LOOP",
+     "evaluable": true,
+     "occupancy_spike": true,
+     "speed_drop": null,
+     "occupancy": {
+      "status": "EVALUATED",
+      "before_mean": 12.12,
+      "after_mean": 45.24,
+      "difference": 33.11,
+      "ci_low": 31.4,
+      "ci_high": 34.83,
+      "before_samples": 60,
+      "after_samples": 10
+     },
+     "speed": {
+      "status": "NOT_MEASURED",
+      "detail": "This source does not report this channel."
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "ef6abe2c-7ac3-4f88-bd55-72f361ae978b",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    },
+    {
+     "source": "nb-radar-2",
+     "sensor_kind": "RADAR",
+     "evaluable": true,
+     "occupancy_spike": null,
+     "speed_drop": true,
+     "occupancy": {
+      "status": "NOT_MEASURED",
+      "detail": "This source does not report this channel."
+     },
+     "speed": {
+      "status": "EVALUATED",
+      "before_mean": 47.88,
+      "after_mean": 18.55,
+      "difference": -29.32,
+      "ci_low": -30.76,
+      "ci_high": -27.89,
+      "before_samples": 60,
+      "after_samples": 10,
+      "drop_fraction": 0.6124
+     },
+     "baseline_samples": 60,
+     "recent_samples": 10,
+     "latest_observation_id": "a95b2c23-1956-4edc-a563-5d6a20a13efc",
+     "latest_observation_at": "2026-03-10T14:00:00"
+    }
+   ],
+   "occupancy_spike_sources": [
+    "nb-loop-1"
+   ],
+   "speed_drop_sources": [
+    "nb-radar-2"
+   ],
+   "corroborating_sources": [
+    "nb-loop-1",
+    "nb-radar-2"
+   ],
+   "evaluated_but_not_corroborating": [],
+   "corroboration_ratio": 1.0,
+   "corroboration_ratio_basis": "Share of evaluable sources on this segment showing a symptom. A measure of agreement between sensors, not a probability that an incident is occurring."
+  }
+ ],
+ "unattributed_sources": [
+  {
+   "source": "roaming-probe",
+   "observations": 70,
+   "reason": "NO_LANE_ASSIGNMENT"
+  }
+ ],
+ "observations_excluded_invalid": 0
+}

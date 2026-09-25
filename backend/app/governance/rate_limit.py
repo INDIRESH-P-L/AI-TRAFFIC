@@ -60,9 +60,24 @@ AUTH_POLICY = LimitPolicy(
     description="Login attempts, to slow credential stuffing.",
 )
 
+# Emergency-vehicle position reports. Deliberately NOT the signal-command
+# bucket: an AVL unit reports every 1-5 seconds, so one ambulance at 1 Hz would
+# exhaust 12/min in twelve seconds and the report that should trigger
+# preemption would be refused. Most reports send nothing (the vehicle is not
+# approaching a junction, or was already preempted); the commands they do cause
+# are bounded separately by the per-vehicle, per-junction rearm window in
+# emergency/preemption.py. Sized for one service account relaying a fleet.
+AVL_REPORT_POLICY = LimitPolicy(
+    "avl_report", max_requests=600, window_sec=60.0,
+    description=(
+        "Emergency vehicle position reports. Dispatches they cause are limited by "
+        "the preemption rearm window, not by this bucket."
+    ),
+)
+
 POLICIES = {
     policy.name: policy
-    for policy in (DEFAULT_POLICY, WRITE_POLICY, SIGNAL_COMMAND_POLICY, AUTH_POLICY)
+    for policy in (DEFAULT_POLICY, WRITE_POLICY, SIGNAL_COMMAND_POLICY, AUTH_POLICY, AVL_REPORT_POLICY)
 }
 
 
@@ -121,6 +136,8 @@ def policy_for_request(method: str, path: str) -> LimitPolicy:
         return AUTH_POLICY
     if "/signals/commands" in path and method == "POST" and not path.endswith("/validate"):
         return SIGNAL_COMMAND_POLICY
+    if path.rstrip("/").endswith("/emergency/avl") and method == "POST":
+        return AVL_REPORT_POLICY
     if "/emergency" in path and method == "POST":
         return SIGNAL_COMMAND_POLICY
     if method in ("POST", "PATCH", "PUT", "DELETE"):

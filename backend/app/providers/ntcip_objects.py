@@ -127,3 +127,75 @@ def status_read_plan(group: int = 1) -> Dict[str, str]:
         "ped_calls": status_group_oid(COL_STATUS_GROUP_PED_CALLS, group),
         "walks": status_group_oid(COL_STATUS_GROUP_WALKS, group),
     }
+
+
+# --- coordination group (asc.coord = .4) -----------------------------------
+#
+# Pattern and split tables used to write a coordination timing plan. Recorded
+# from NTCIP 1202 v02's coordination section and exercised end to end against
+# this project's emulator only. As the module docstring says, vendors vary:
+# verify these against the target controller's MIB before field use, and
+# override per controller where a vendor departs from them.
+COORD_GROUP = ASC_ROOT + ".4"
+
+COORD_OPERATIONAL_MODE_OID = COORD_GROUP + ".1.0"
+MAX_PATTERNS_OID = COORD_GROUP + ".5.0"
+
+# patternTable (asc.coord.patternTable = .4.7), entry .1, indexed by pattern.
+PATTERN_ENTRY = COORD_GROUP + ".7.1"
+COL_PATTERN_NUMBER = 1
+COL_PATTERN_CYCLE_TIME = 2
+COL_PATTERN_OFFSET_TIME = 3
+COL_PATTERN_SPLIT_NUMBER = 4
+COL_PATTERN_SEQUENCE_NUMBER = 5
+
+MAX_SPLITS_OID = COORD_GROUP + ".8.0"
+
+# splitTable (asc.coord.splitTable = .4.9), entry .1, indexed by split, phase.
+SPLIT_ENTRY = COORD_GROUP + ".9.1"
+COL_SPLIT_NUMBER = 1
+COL_SPLIT_PHASE = 2
+COL_SPLIT_TIME = 3
+COL_SPLIT_MODE = 4
+COL_SPLIT_COORD_PHASE = 5
+
+# Status and control scalars.
+COORD_PATTERN_STATUS_OID = COORD_GROUP + ".10.0"
+COORD_CYCLE_STATUS_OID = COORD_GROUP + ".12.0"
+SYSTEM_PATTERN_CONTROL_OID = COORD_GROUP + ".14.0"
+
+#: coordPatternStatus value reported while running free (no pattern active).
+PATTERN_STATUS_FREE = 254
+
+
+def pattern_oid(column: int, pattern: int) -> str:
+    """OID of one column of patternTable for the given pattern number."""
+    return PATTERN_ENTRY + "." + str(column) + "." + str(pattern)
+
+
+def split_oid(column: int, split_number: int, phase: int) -> str:
+    """OID of one column of splitTable for the given split plan and phase."""
+    return SPLIT_ENTRY + "." + str(column) + "." + str(split_number) + "." + str(phase)
+
+
+def timing_plan_varbinds(pattern: int, cycle_sec: int, offset_sec: int,
+                         splits: Dict[int, int], coord_phase: int) -> List[tuple]:
+    """(oid, value) pairs that write and activate one timing plan.
+
+    Written as ONE SetRequest. SNMPv1 sets are atomic (RFC 1157 4.1.5): either
+    every varbind is applied or none is, so a controller can never be left
+    running a cycle length from one plan with the splits of another. The
+    activation (systemPatternControl) is the last varbind of the same PDU.
+    """
+    split_number = pattern
+    pairs = [
+        (pattern_oid(COL_PATTERN_CYCLE_TIME, pattern), int(cycle_sec)),
+        (pattern_oid(COL_PATTERN_OFFSET_TIME, pattern), int(offset_sec)),
+        (pattern_oid(COL_PATTERN_SPLIT_NUMBER, pattern), split_number),
+    ]
+    for phase, seconds in sorted(splits.items()):
+        pairs.append((split_oid(COL_SPLIT_TIME, split_number, int(phase)), int(seconds)))
+        pairs.append((split_oid(COL_SPLIT_COORD_PHASE, split_number, int(phase)),
+                      1 if int(phase) == int(coord_phase) else 0))
+    pairs.append((SYSTEM_PATTERN_CONTROL_OID, pattern))
+    return pairs

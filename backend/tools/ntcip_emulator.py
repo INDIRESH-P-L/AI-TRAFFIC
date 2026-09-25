@@ -31,7 +31,7 @@ import socket
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from app.providers import ntcip_objects as ntcip
 from app.providers import snmp_codec as snmp
@@ -78,6 +78,23 @@ class SignalControllerEmulator:
     _interval_started: float = field(default_factory=time.monotonic)
     _hold_bitmap: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    # -- coordination (NTCIP 1202 pattern and split tables) -----------------
+    #: Wall clock shared by every emulator on the host - the stand-in for the
+    #: GPS/NTP time reference field controllers synchronise offsets against.
+    #: Injectable so tests can drive coordination deterministically.
+    clock: Callable[[], float] = time.time
+    max_patterns: int = 16
+    max_splits: int = 16
+    #: pattern -> {"cycle": s, "offset": s, "split_number": n}
+    _patterns: Dict[int, Dict[str, int]] = field(default_factory=dict)
+    #: (split_number, phase) -> seconds / coord flag
+    _split_times: Dict[Tuple[int, int], int] = field(default_factory=dict)
+    _split_coord: Dict[Tuple[int, int], int] = field(default_factory=dict)
+    #: systemPatternControl: 0 = no pattern selected, i.e. free running.
+    _system_pattern: int = 0
+    #: A green extension granted under coordination: (cycle_index, group_pos, seconds)
+    _extension: Optional[Tuple[int, int, float]] = None
 
     # -- sequencer ---------------------------------------------------------
 
@@ -130,9 +147,144 @@ class SignalControllerEmulator:
                 self._hold_bitmap = 0
             self._interval_started = now - (elapsed - limit)
 
+    # -- coordination ------------------------------------------------------
+
+    def _coordinated_plan(self) -> Optional[Dict[str, object]]:
+        """The active plan, if it forms a runnable schedule; else None (free).
+
+        A real controller that is told to run an inconsistent pattern does not
+        run it; neither does this one. It stays free, and coordPatternStatus
+        reports FREE, so a read-back shows the plan did not take.
+        """
+        pattern = self._patterns.get(self._system_pattern)
+        if not self._system_pattern or not pattern:
+            return None
+        cycle, offset = pattern.get("cycle", 0), pattern.get("offset", 0)
+        split_number = pattern.get("split_number", self._system_pattern)
+        if cycle <= 0 or not (0 <= offset < cycle):
+            return None
+
+        coord_phase = next(
+            (phase for (sn, phase), flag in self._split_coord.items() if sn == split_number and flag),
+            None,
+        )
+        durations = []
+        for group in self.groups:
+            times = [self._split_times.get((split_number, phase)) for phase in group.phases]
+            if any(t is None or t <= 0 for t in times) or len(set(times)) != 1:
+                # Both rings must spend the same time in a barrier group.
+                return None
+            durations.append(times[0])
+        if sum(durations) != cycle:
+            return None
+        for group, seconds in zip(self.groups, durations):
+            if seconds < group.min_green_sec + group.yellow_sec + group.red_clearance_sec:
+                return None
+
+        # The coordinated phase's group starts the cycle: offsets reference the
+        # start of coordinated-phase green.
+        order = list(range(len(self.groups)))
+        if coord_phase is not None:
+            first = next((i for i, g in enumerate(self.groups) if coord_phase in g.phases), 0)
+            order = order[first:] + order[:first]
+        return {
+            "cycle": cycle, "offset": offset, "order": order,
+            "durations": {i: durations[i] for i in range(len(self.groups))},
+        }
+
+    def _coordinated_position(self, plan: Dict[str, object]) -> Tuple[int, float]:
+        since = self.clock() - plan["offset"]
+        cycle = plan["cycle"]
+        return int(since // cycle), since % cycle
+
+    def _coordinated_state(self, plan: Dict[str, object]) -> Dict[str, object]:
+        cycle_index, position = self._coordinated_position(plan)
+        order = plan["order"]
+        durations = [plan["durations"][i] for i in order]
+
+        if self._extension and self._extension[0] != cycle_index:
+            # The extension belonged to an earlier cycle; its hold is released.
+            self._extension = None
+            self._hold_bitmap = 0
+        if self._extension:
+            _cycle, group_pos, seconds = self._extension
+            durations[group_pos] += seconds
+            durations[group_pos + 1] -= seconds
+
+        start = 0.0
+        for pos, length in enumerate(durations):
+            if position < start + length:
+                group = self.groups[order[pos]]
+                into = position - start
+                green_len = length - group.yellow_sec - group.red_clearance_sec
+                if into < green_len:
+                    interval, greens, yellows = GREEN, list(group.phases), []
+                elif into < green_len + group.yellow_sec:
+                    interval, greens, yellows = YELLOW, [], list(group.phases)
+                else:
+                    interval, greens, yellows = RED_CLEARANCE, [], []
+                next_group = self.groups[order[(pos + 1) % len(order)]]
+                all_phases = [p for g in self.groups for p in g.phases]
+                return {
+                    "interval": interval,
+                    "greens": greens,
+                    "yellows": yellows,
+                    "reds": sorted(p for p in all_phases if p not in greens and p not in yellows),
+                    "phase_nexts": list(next_group.phases),
+                    "held_phases": self._held_phases(),
+                    "elapsed_in_interval_sec": round(into, 2),
+                    "coordinated": True,
+                    "active_pattern": self._system_pattern,
+                    "cycle_position_sec": round(position, 2),
+                    "_group_pos": pos,
+                    "_cycle_index": cycle_index,
+                    "_green_len": green_len,
+                }
+            start += length
+        # Floating-point edge at the very end of the cycle.
+        return self._coordinated_state_at_start(plan)
+
+    def _coordinated_state_at_start(self, plan):
+        group = self.groups[plan["order"][0]]
+        return {"interval": GREEN, "greens": list(group.phases), "yellows": [],
+                "reds": [], "phase_nexts": [], "held_phases": self._held_phases(),
+                "elapsed_in_interval_sec": 0.0, "coordinated": True,
+                "active_pattern": self._system_pattern, "cycle_position_sec": 0.0,
+                "_group_pos": 0, "_cycle_index": 0, "_green_len": 0.0}
+
+    def _grant_extension(self, plan: Dict[str, object], held: List[int]) -> None:
+        """Green extension under coordination - the TSP and preemption case.
+
+        Extends the currently green barrier group, borrowing the time from the
+        next group within the same cycle so the cycle length - and so the
+        coordination - is preserved. Bounded by the group's max green and by
+        the next group's minimum green plus clearance. A hold for phases not
+        currently green is accepted but has no effect until their own time,
+        which the post-command read-back reports truthfully.
+        """
+        current = self._coordinated_state(plan)
+        pos = current["_group_pos"]
+        order = plan["order"]
+        group = self.groups[order[pos]]
+        if current["interval"] != GREEN or not (set(held) & set(group.phases)):
+            return
+        if pos + 1 >= len(order):
+            return  # cannot borrow across the cycle boundary without losing sync
+        next_group = self.groups[order[pos + 1]]
+        next_len = plan["durations"][order[pos + 1]]
+        headroom_here = group.max_green_sec - current["_green_len"]
+        slack_next = next_len - next_group.yellow_sec - next_group.red_clearance_sec - next_group.min_green_sec
+        seconds = max(0.0, min(headroom_here, slack_next))
+        if seconds > 0:
+            self._extension = (current["_cycle_index"], pos, seconds)
+
     def state(self) -> Dict[str, object]:
         """Current interval and the phases in each colour."""
         with self._lock:
+            plan = self._coordinated_plan()
+            if plan is not None:
+                state = self._coordinated_state(plan)
+                return {k: v for k, v in state.items() if not k.startswith("_")}
             self._advance()
             group = self._group
             all_phases = [p for g in self.groups for p in g.phases]
@@ -158,10 +310,21 @@ class SignalControllerEmulator:
                 "phase_nexts": list(next_group.phases),
                 "held_phases": self._held_phases(),
                 "elapsed_in_interval_sec": round(time.monotonic() - self._interval_started, 2),
+                "coordinated": False,
+                "active_pattern": ntcip.PATTERN_STATUS_FREE,
+                "cycle_position_sec": None,
             }
 
     def apply_hold(self, bitmap: int) -> None:
         with self._lock:
+            plan = self._coordinated_plan()
+            if plan is not None:
+                self._hold_bitmap = bitmap
+                if bitmap:
+                    self._grant_extension(
+                        plan, ntcip.phase_bitmap_to_numbers(bitmap, self.status_group)
+                    )
+                return
             self._advance()
             self._hold_bitmap = bitmap
 
@@ -196,6 +359,66 @@ class SignalControllerEmulator:
                 return self._hold_bitmap
             return 0
 
+        return self._read_coordination(oid)
+
+    def _read_coordination(self, oid: str) -> Optional[int]:
+        if oid == ntcip.MAX_PATTERNS_OID:
+            return self.max_patterns
+        if oid == ntcip.MAX_SPLITS_OID:
+            return self.max_splits
+        if oid == ntcip.SYSTEM_PATTERN_CONTROL_OID:
+            return self._system_pattern
+        if oid in (ntcip.COORD_PATTERN_STATUS_OID, ntcip.COORD_CYCLE_STATUS_OID):
+            with self._lock:
+                plan = self._coordinated_plan()
+                if oid == ntcip.COORD_PATTERN_STATUS_OID:
+                    return self._system_pattern if plan else ntcip.PATTERN_STATUS_FREE
+                if plan is None:
+                    return 0
+                return int(self._coordinated_position(plan)[1])
+
+        parsed = self._parse_table_oid(oid)
+        if parsed is None:
+            return None
+        table, column, index = parsed
+        if table == "pattern":
+            entry = self._patterns.get(index[0], {})
+            if column == ntcip.COL_PATTERN_NUMBER:
+                return index[0]
+            if column == ntcip.COL_PATTERN_CYCLE_TIME:
+                return entry.get("cycle", 0)
+            if column == ntcip.COL_PATTERN_OFFSET_TIME:
+                return entry.get("offset", 0)
+            if column == ntcip.COL_PATTERN_SPLIT_NUMBER:
+                return entry.get("split_number", 0)
+            return 0
+        if column == ntcip.COL_SPLIT_TIME:
+            return self._split_times.get(index, 0)
+        if column == ntcip.COL_SPLIT_COORD_PHASE:
+            return self._split_coord.get(index, 0)
+        if column in (ntcip.COL_SPLIT_NUMBER, ntcip.COL_SPLIT_PHASE):
+            return index[0] if column == ntcip.COL_SPLIT_NUMBER else index[1]
+        return 0
+
+    def _parse_table_oid(self, oid: str):
+        for table, prefix, width in (
+            ("pattern", ntcip.PATTERN_ENTRY + ".", 1),
+            ("split", ntcip.SPLIT_ENTRY + ".", 2),
+        ):
+            if oid.startswith(prefix):
+                try:
+                    parts = [int(x) for x in oid[len(prefix):].split(".")]
+                except ValueError:
+                    return None
+                if len(parts) != 1 + width:
+                    return None
+                column, index = parts[0], tuple(parts[1:])
+                limit = self.max_patterns if table == "pattern" else self.max_splits
+                if not (1 <= index[0] <= limit):
+                    return None
+                if table == "split" and not (1 <= index[1] <= self.max_phases):
+                    return None
+                return table, column, index
         return None
 
     def _status_column(self, column: int) -> Optional[int]:
@@ -226,8 +449,10 @@ class SignalControllerEmulator:
             return 0
         return None
 
-    def write_oid(self, oid: str, value: int) -> bool:
-        """Applies a SetRequest. Returns False for read-only or unknown objects."""
+    def can_write(self, oid: str, value: int) -> bool:
+        """Whether a SetRequest varbind is acceptable, without applying it."""
+        if not isinstance(value, int) or not (0 <= value <= 255):
+            return False
         control_prefix = ntcip.PHASE_CONTROL_GROUP_ENTRY + "."
         if oid.startswith(control_prefix):
             try:
@@ -235,10 +460,43 @@ class SignalControllerEmulator:
                 column, group = int(column_str), int(group_str)
             except ValueError:
                 return False
-            if column == ntcip.COL_CONTROL_GROUP_HOLD and group == self.status_group:
-                self.apply_hold(int(value))
+            return column == ntcip.COL_CONTROL_GROUP_HOLD and group == self.status_group
+        if oid == ntcip.SYSTEM_PATTERN_CONTROL_OID:
+            return value <= self.max_patterns
+        parsed = self._parse_table_oid(oid)
+        if parsed is None:
+            return False
+        table, column, _index = parsed
+        if table == "pattern":
+            return column in (ntcip.COL_PATTERN_CYCLE_TIME, ntcip.COL_PATTERN_OFFSET_TIME,
+                              ntcip.COL_PATTERN_SPLIT_NUMBER)
+        return column in (ntcip.COL_SPLIT_TIME, ntcip.COL_SPLIT_COORD_PHASE)
+
+    def write_oid(self, oid: str, value: int) -> bool:
+        """Applies one validated SetRequest varbind."""
+        if not self.can_write(oid, value):
+            return False
+        control_prefix = ntcip.PHASE_CONTROL_GROUP_ENTRY + "."
+        if oid.startswith(control_prefix):
+            self.apply_hold(int(value))
+            return True
+        with self._lock:
+            if oid == ntcip.SYSTEM_PATTERN_CONTROL_OID:
+                self._system_pattern = int(value)
+                self._extension = None
                 return True
-        return False
+            table, column, index = self._parse_table_oid(oid)
+            if table == "pattern":
+                entry = self._patterns.setdefault(index[0], {})
+                key = {ntcip.COL_PATTERN_CYCLE_TIME: "cycle",
+                       ntcip.COL_PATTERN_OFFSET_TIME: "offset",
+                       ntcip.COL_PATTERN_SPLIT_NUMBER: "split_number"}[column]
+                entry[key] = int(value)
+            elif column == ntcip.COL_SPLIT_TIME:
+                self._split_times[index] = int(value)
+            else:
+                self._split_coord[index] = int(value)
+        return True
 
 
 class NtcipEmulatorServer:
@@ -328,17 +586,25 @@ class NtcipEmulatorServer:
                     )
                 out.append(snmp.VarBind(oid=vb.oid, value=value))
             else:
+                # Validation pass only; nothing is applied until every varbind
+                # in the PDU has been accepted.
                 if not isinstance(vb.value, int):
                     return snmp.build_response(
                         message.community, message.request_id, [],
                         error_status=3, error_index=index,  # badValue
                     )
-                if not self.emulator.write_oid(vb.oid, vb.value):
+                if not self.emulator.can_write(vb.oid, vb.value):
                     return snmp.build_response(
                         message.community, message.request_id, [],
-                        error_status=4, error_index=index,  # readOnly
+                        error_status=4, error_index=index,  # readOnly / not writable
                     )
                 out.append(snmp.VarBind(oid=vb.oid, value=vb.value))
+
+        if message.pdu_tag == snmp.TAG_SET_REQUEST:
+            # RFC 1157 4.1.5: a SetRequest is applied as if simultaneously, all
+            # or nothing. Every varbind passed validation above, so apply them.
+            for vb in message.varbinds:
+                self.emulator.write_oid(vb.oid, vb.value)
 
         return snmp.build_response(message.community, message.request_id, out)
 
@@ -382,8 +648,10 @@ def main() -> None:
         while True:
             state = server.emulator.state()
             print(
-                "  {:<14} green={:<8} yellow={:<8} held={}".format(
+                "  {:<14} {:<10} green={:<8} yellow={:<8} held={}".format(
                     state["interval"],
+                    "coord p{} @{}s".format(state["active_pattern"], int(state["cycle_position_sec"]))
+                    if state.get("coordinated") else "free",
                     ",".join(str(p) for p in state["greens"]) or "-",
                     ",".join(str(p) for p in state["yellows"]) or "-",
                     ",".join(str(p) for p in state["held_phases"]) or "-",

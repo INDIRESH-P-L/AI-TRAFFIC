@@ -1,0 +1,22 @@
+{
+ "intersection_id": "a3efb9bf-4790-4283-af70-ab0a18991d84",
+ "intersection_name": "Fixture FC-NONE",
+ "metric": "avg_speed_kph",
+ "metric_label": "Average speed",
+ "unit": "km/h",
+ "as_of": "2026-03-10T14:00:00",
+ "bin_minutes": 15,
+ "horizon_bins": 4,
+ "method_version": "arima-p-d-0-cls-v1",
+ "stamp": "SCENARIO / HYPOTHETICAL",
+ "data_kind": "MODEL_FORECAST",
+ "model": null,
+ "backtest": null,
+ "forecast_points": [],
+ "forecast_status": "NOT_COMPUTABLE",
+ "refusal_reason": "NO_STORED_VALUES_FOR_METRIC",
+ "message": "No average speed value has been stored for this junction. There is no series to model; connect a source that measures it. Waiting will not help.",
+ "history": {
+  "samples": 0
+ }
+}

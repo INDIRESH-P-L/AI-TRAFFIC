@@ -131,11 +131,47 @@ export const api = {
   submitPreemption: (data: any) =>
     apiRequest<any>('/emergency', { method: 'POST', body: JSON.stringify(data) }),
   getTransitEvents: () => apiRequest<any>('/transit'),
+  // Conditional TSP. Dry run needs telemetry:read; dispatch needs signal:command.
+  evaluateTransitPriority: (dryRun = true) =>
+    apiRequest<any>(`/transit/tsp/evaluate?dry_run=${dryRun}`, { method: 'POST' }),
+
+  // ---- Arterial coordination (green waves) ----
+  proposeCoordination: (corridorId: string, data: any) =>
+    apiRequest<any>(`/coordination/corridors/${corridorId}/propose`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getCoordinationPlans: (corridorId?: string) =>
+    apiRequest<any>(`/coordination/plans${corridorId ? `?corridor_id=${corridorId}` : ''}`),
+  getCoordinationPlan: (planId: string) => apiRequest<any>(`/coordination/plans/${planId}`),
+  applyCoordinationPlan: (planId: string) =>
+    apiRequest<any>(`/coordination/plans/${planId}/apply`, { method: 'POST' }),
+  verifyCoordinationPlan: (planId: string, minutes = 15) =>
+    apiRequest<any>(`/coordination/plans/${planId}/verify?minutes=${minutes}`),
 
   // Predictions & Analytics
   getAiModels: () => apiRequest<any>('/predictions/models'),
-  getForecast: (intersectionId: string) =>
-    apiRequest<any>(`/predictions/forecast/${intersectionId}`),
+  getForecast: (
+    intersectionId: string,
+    metric = 'flow_rate_vph',
+    binMinutes = 15,
+    horizonBins = 4,
+  ) =>
+    apiRequest<any>(
+      `/predictions/forecast/${intersectionId}?metric=${encodeURIComponent(metric)}` +
+        `&bin_minutes=${binMinutes}&horizon_bins=${horizonBins}`,
+    ),
+
+  // ---- Grounded intelligence: anomalies and fusion incident detection ----
+  getAnomalies: (intersectionId: string, testMinutes = 15) =>
+    apiRequest<any>(`/intelligence/anomalies/${intersectionId}?test_minutes=${testMinutes}`),
+  getIncidentFusion: (intersectionId: string, recentMinutes = 10, baselineMinutes = 60) =>
+    apiRequest<any>(
+      `/intelligence/incident-fusion/${intersectionId}` +
+        `?recent_minutes=${recentMinutes}&baseline_minutes=${baselineMinutes}`,
+    ),
+  recordFusionIncidents: (intersectionId: string) =>
+    apiRequest<any>(`/intelligence/incident-fusion/${intersectionId}/record`, { method: 'POST' }),
   getAnalyticsSummary: () => apiRequest<any>('/analytics/summary'),
 
   // Corridors

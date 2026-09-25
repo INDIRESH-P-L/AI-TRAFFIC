@@ -1,17 +1,23 @@
 """TRAFFICINTEL AI - Traffic Prediction & Model Registry Endpoints
 
-Handles traffic demand forecasting models and validation datasets.
-If insufficient historical observations exist, explicitly states
-'INSUFFICIENT DATA FOR RELIABLE FORECAST'. Never generates synthetic forecast lines.
+Short-horizon forecasting from stored telemetry (see analytics/forecasting.py).
+A forecast is offered only when a model fitted to this junction's own history
+has demonstrated skill over naive persistence in a rolling-origin backtest;
+otherwise the response is INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST with the
+reason, and - where a model was fitted - that model and its measured error.
+Never generates synthetic forecast lines.
 """
 
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models.entities import User, AIModel, Intersection, TrafficObservation
+from app.analytics.forecasting import ShortHorizonForecaster
+from app.models.entities import User, AIModel
 
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
 
@@ -28,46 +34,29 @@ def list_ai_models(db: Session = Depends(get_db), current_user: User = Depends(g
 @router.get("/forecast/{intersection_id}")
 def get_traffic_forecast(
     intersection_id: str,
+    metric: str = Query(default="flow_rate_vph", description="flow_rate_vph, occupancy_pct or avg_speed_kph"),
+    bin_minutes: int = Query(default=15, description="5, 15 or 60"),
+    horizon_bins: int = Query(default=4, ge=1, le=8),
+    history_days: int = Query(default=7, ge=1, le=30),
+    as_of: Optional[datetime] = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    inter = db.query(Intersection).filter(Intersection.id == intersection_id).first()
-    if not inter:
+    """Short-horizon ARIMA(p,d,0) forecast from this junction's stored history.
+
+    Refuses with INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST when the history is too
+    short or gapped, when the latest data is too old, or when the fitted model's
+    measured backtest skill over naive persistence is too low - in which case
+    the refusal reports that model and its error. Never draws a line it has not
+    earned.
+    """
+    try:
+        result = ShortHorizonForecaster.forecast(
+            db, intersection_id, metric=metric, bin_minutes=bin_minutes,
+            horizon_bins=horizon_bins, history_days=history_days, as_of=as_of,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result.get("forecast_status") == "NOT_FOUND":
         raise HTTPException(status_code=404, detail="Intersection not found")
-
-    # Check volume of real historical observations for this intersection
-    obs_count = db.query(TrafficObservation).filter(TrafficObservation.intersection_id == intersection_id).count()
-
-    # Minimum threshold of historical observations required for statistical forecasting (e.g. 100 observations)
-    MIN_OBSERVATIONS_REQUIRED = 100
-
-    if obs_count < MIN_OBSERVATIONS_REQUIRED:
-        return {
-            "intersection_id": intersection_id,
-            "intersection_name": inter.name,
-            "forecast_status": "INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST",
-            "historical_observations_count": obs_count,
-            "observations_required_threshold": MIN_OBSERVATIONS_REQUIRED,
-            "message": "Forecasting requires a minimum of 100 historical telemetry observations. No synthetic forecast will be generated.",
-            "forecast_points": []
-        }
-
-    # Sufficient history exists, but no forecasting model has been trained and
-    # registered against it yet. Reporting a model name and error metrics here
-    # would be fabrication: no model has been fitted, so no MAE or RMSE has
-    # been measured.
-    return {
-        "intersection_id": intersection_id,
-        "intersection_name": inter.name,
-        "forecast_status": "NO_FORECAST_MODEL_REGISTERED",
-        "historical_observations_count": obs_count,
-        "observations_required_threshold": MIN_OBSERVATIONS_REQUIRED,
-        "message": (
-            "Sufficient historical observations exist, but no trained forecasting model is "
-            "registered for this intersection. Register and activate a model under "
-            "/api/v1/predictions/models to produce forecasts."
-        ),
-        "model_used": None,
-        "validation_metrics": None,
-        "forecast_points": []
-    }
+    return result

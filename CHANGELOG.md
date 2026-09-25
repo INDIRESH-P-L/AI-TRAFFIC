@@ -2,6 +2,144 @@
 
 All notable changes to TRAFFICINTEL AI.
 
+## [Unreleased] — Corridor and Network Scale (roadmap Phase 2)
+
+Green-wave coordination, conditional transit signal priority, and emergency
+preemption from AVL. All three change what a controller does, so the phase
+began by making sure there is exactly one path to a controller.
+
+### Added
+
+- **`SignalCommandDispatcher`** (`app/signals/dispatch.py`). Validates, records,
+  dispatches, reads back and audits. It is the only code that calls an adapter's
+  `send_command` or `write_timing_plan`, and a static test enforces that.
+- **`validate_timing_plan`** in the Safety Engine. It checks cycle bounds,
+  offset range, splits against minimum green, clearance and pedestrian
+  intervals, maximum green, ring sums, barrier alignment and concurrent
+  conflicts, plus controller readability and capability.
+- **NTCIP 1202 coordination objects** (pattern table, split table,
+  `systemPatternControl`). A plan is written as one atomic SetRequest and read
+  back. The emulator implements coordinated operation against a shared clock,
+  green extension under coordination, and atomic multi-varbind SETs.
+- **Green-wave planner** (`app/coordination/green_wave.py`) and
+  `/coordination/*` endpoints: propose, apply, verify. Webster gained a
+  `fixed_cycle_sec` for the common corridor cycle.
+- **Conditional TSP** (`app/transit/tsp.py`), a dependency-free **GTFS-Realtime
+  protobuf decoder** (`app/providers/gtfs_rt.py`), a `TransitProvider` interface
+  and a `GtfsRealtimeProvider`. `GTFS_RT_*` settings were added.
+- **AVL preemption**: a strict NMEA RMC parser (`app/emergency/nmea.py`) and
+  `PreemptionService`, shared by the manual and AVL paths.
+- Migration **`0011_corridor_network`**: a `coordination_plans` table, plus TSP
+  and preemption decision columns. It round-trips on SQLite and PostgreSQL.
+- Console: an `/coordination` page, a rebuilt `/transit` page, and truthful
+  `/emergency` verdicts. 31 render-check assertions were added (134 total).
+- 58 tests in `tests/test_corridor_network.py`. **254 pass on SQLite and on
+  PostgreSQL.**
+
+### Fixed
+
+- **Manual preemption never reached the controller.** Calls were recorded
+  `ACTIVE` and audited `EXECUTED` without being sent. They now dispatch, and the
+  status is the real outcome (`ACTIVE` / `REJECTED` / `FAILED`).
+- **The Webster optimum could be physically infeasible.** It ignores minimum
+  greens and pedestrian intervals. On a live corridor it gave a 6 s main-street
+  green in a 40 s cycle, against a 56 s pedestrian minimum. The Safety Engine
+  rejected the plan, but the planner should never have proposed it. The common
+  cycle now has a feasibility floor, and split rounding raises an error instead
+  of absorbing a remainder.
+- **AVL reports were throttled at the signal-command rate (12/min).** An AVL
+  unit at 1 Hz would have been cut off after twelve seconds. Position reports
+  now have their own bucket, and the commands they cause are bounded by the
+  preemption rearm window.
+- **Idempotency keys exceeded `VARCHAR(64)`.** SQLite stored 79-character
+  coordination keys silently, and PostgreSQL rejected them. The EVP and TSP
+  keys truncated with `[:64]` could lose their random suffix behind a long
+  vehicle ID. All three are now bounded and collision-free. The coordination
+  key is a deterministic hash, so re-applying a plan is detected.
+- **NMEA two-digit years** were read as 20xx; there is now a pivot at 80.
+- **The Emergency page** showed a hardcoded "OPTICAL / GPS CAD" badge styled as
+  active, and a "PREEMPTION GRANTED" banner for any call that passed the Safety
+  Engine. It also pre-filled a fictional vehicle ID.
+- **The Transit endpoint** said "Connected to GTFS-RT feed" whenever any old
+  record existed. It now reports whether a feed is configured.
+
+### Not implemented, stated plainly
+
+- **Early green** for TSP (it needs NTCIP force-off).
+- **Automatic background TSP evaluation.** TSP runs when the endpoint is
+  called, from the console or a scheduler.
+- **Verification of the NTCIP coordination OIDs against the standard document
+  or a vendor MIB.** They are exercised only against the emulator.
+
+## [Unreleased] — Grounded Intelligence (roadmap Phase 1)
+
+Anomaly detection, short-horizon forecasting and fusion-based incident
+detection, all computed from stored telemetry only. No schema change and no
+migration: anomalies and forecasts are computed on read, and fusion detections
+use the existing incident and evidence tables.
+
+### Added
+
+- **`app/analytics/stats.py`** — exact Student-t tail probability (regularized
+  incomplete beta) and a least-squares solver. Dependency-free, like the rest
+  of the numeric code: anomaly confidence is printed as 1 − p, so p must be a
+  real p-value, not an interpolated table value.
+- **Anomaly detection** (`app/analytics/anomaly.py`,
+  `GET /intelligence/anomalies/{id}`) — prediction-interval t-test per reading
+  with Bonferroni control across the test window, plus a CUSUM shift detector
+  whose alarms count only once Welch's test confirms them. Confidence is derived
+  from baseline size. Baselines prefer the same time of day on previous days.
+  `NOT_COMPUTABLE` vs `INSUFFICIENT_DATA` kept distinct per metric.
+- **Forecasting** (`app/analytics/forecasting.py`,
+  `GET /predictions/forecast/{id}`) — ARIMA(p,d,0) by conditional least squares,
+  named as that subset (no MA terms). Order chosen by rolling-origin backtest
+  error; refused with `NO_SKILL_OVER_PERSISTENCE` unless it beats naive
+  persistence by 10%, and the refusal carries the fitted model and its measured
+  error. Gaps never interpolated; forecasts stamped `SCENARIO / HYPOTHETICAL`
+  with measured interval coverage.
+- **Fusion incident detection** (`app/incidents/fusion.py`,
+  `GET /intelligence/incident-fusion/{id}`, `POST …/record`) — occupancy spike +
+  speed drop corroborated by ≥2 independent sources per approach, each source
+  against its own baseline. Names corroborating and dissenting sources.
+  Recording creates `DETECTED` only, attaching the corroborating observations
+  through the existing evidence mechanism; requires `incident:write`.
+- **Console** — `/intelligence` page with anomaly, forecast and fusion panels;
+  `/predictions` now renders the real forecaster.
+- **Tests** — 36 new (`tests/test_grounded_intelligence.py`), including a
+  safety-invariant test that no intelligence endpoint creates a signal command.
+  **196 pass on SQLite and on PostgreSQL.**
+- **Render check** — 39 new assertions (103 total). Fixtures come from
+  `backend/tools/generate_intelligence_render_fixtures.py`, which runs the real
+  detectors over deterministic test telemetry in a throwaway database.
+
+### Changed
+
+- `NO_FORECAST_MODEL_REGISTERED` no longer exists. With no stored values the
+  forecast is `NOT_COMPUTABLE`; otherwise a model is fitted and either offered
+  or refused on measured skill. The Phase 0 test that pinned the old status now
+  pins its invariant instead: no points, model or error metric from nothing.
+
+### Removed — fabricated data
+
+- **The Predictions page displayed three models that did not exist**, with
+  literal version numbers, "Validation MAE: 3.42 veh / RMSE: 4.81" and
+  "Precision: 92.1% / Recall: 88.4%", badged `ACTIVE`. The earlier fabrication
+  scans searched for `Math.random`, `faker`, `mock`, `demo` and `seed`, which
+  cannot catch a hardcoded literal. The registry now renders only what
+  `GET /predictions/models` returns.
+
+### Fixed
+
+- **Test isolation: login rate limit leaked across modules.** The limiter is
+  per-process and every test client shares one address, so modules shared one
+  budget of 10 logins per five minutes; adding this phase's logins pushed a
+  later module into 429s. Buckets now reset per test module (not per test, so a
+  module exercising the limiter still sees its own requests accumulate). The
+  production policy is unchanged.
+- **Same-time-of-day baseline was centred on the start of the test window**,
+  skewing it by half the window. Caught by its own test; now centred on the
+  window's midpoint.
+
 ## [Unreleased] — Phase 4: Production Readiness
 
 Everything here was executed against real containers and a real PostgreSQL

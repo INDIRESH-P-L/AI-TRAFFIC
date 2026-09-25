@@ -1,135 +1,190 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Cpu, RefreshCw, TrendingUp } from 'lucide-react';
 import { api } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
+import { SkeletonRows } from '../components/Skeleton';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
-import { TrendingUp, Cpu, Database } from 'lucide-react';
+import { ForecastPanel } from '../components/intelligence/ForecastPanel';
+
+/**
+ * TRAFFICINTEL AI - Forecasting
+ *
+ * This page previously displayed three "production models" with version
+ * numbers, validation MAE/RMSE and precision/recall figures. None of those
+ * models existed; the numbers were literals in this file. They have been
+ * removed. The registry section now renders only what GET /predictions/models
+ * returns, and every forecast figure on the page comes from a model fitted to
+ * the selected junction's own stored history, with its measured backtest error.
+ *
+ * States:
+ *   LOADING  skeleton rows for the forecast; the registry shows its own state.
+ *   EMPTY    no junctions -> TruthfulEmptyState. No registered models -> the
+ *            registry says so, and explains that the forecaster below is
+ *            fitted on demand rather than registered.
+ *   ERROR    named failure with Retry; no stale forecast is left on screen.
+ */
+
+const METRIC_OPTIONS = [
+  { value: 'flow_rate_vph', label: 'Throughput' },
+  { value: 'occupancy_pct', label: 'Occupancy' },
+  { value: 'avg_speed_kph', label: 'Average speed' },
+];
 
 export const Predictions: React.FC = () => {
-  const [intersections, setIntersections] = useState<any[]>([]);
-  const [selectedId, setSelectedId] = useState<string>('');
-  const [forecast, setForecast] = useState<any>(null);
+  const [intersections, setIntersections] = useState<any[] | null>(null);
+  const [selectedId, setSelectedId] = useState('');
+  const [metric, setMetric] = useState('flow_rate_vph');
   const [modelsData, setModelsData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const [forecast, setForecast] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [interData, models] = await Promise.all([
-          api.getIntersections(),
-          api.getAiModels(),
-        ]);
-        setIntersections(interData);
-        setModelsData(models);
-        if (interData.length > 0) {
-          setSelectedId(interData[0].id);
-        }
-      } catch (err) {
-        console.error('Failed to load predictions', err);
-      } finally {
-        setLoading(false);
-      }
+    let cancelled = false;
+    api
+      .getIntersections()
+      .then((list: any[]) => {
+        if (cancelled) return;
+        setIntersections(list);
+        if (list.length) setSelectedId((current) => current || list[0].id);
+      })
+      .catch(() => {
+        if (!cancelled) setIntersections([]);
+      });
+    api
+      .getAiModels()
+      .then((data: any) => {
+        if (!cancelled) setModelsData(data);
+      })
+      .catch((e: any) => {
+        if (!cancelled) setModelsError(e?.message || 'The model registry could not be read.');
+      });
+    return () => {
+      cancelled = true;
     };
-    load();
   }, []);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!selectedId) return;
-    const fetchForecast = async () => {
-      try {
-        const f = await api.getForecast(selectedId);
-        setForecast(f);
-      } catch (err) {
-        console.error('Failed to fetch forecast', err);
-      }
-    };
-    fetchForecast();
-  }, [selectedId]);
+    setLoading(true);
+    setError(null);
+    setForecast(null);
+    try {
+      setForecast(await api.getForecast(selectedId, metric));
+    } catch (e: any) {
+      setError(e?.message || 'The forecast could not be computed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedId, metric]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const registered: any[] = modelsData?.models || [];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Traffic Forecasting & Model Registry</h1>
+          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Traffic Forecasting</h1>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--its-text-secondary)', marginTop: '2px' }}>
-            Validated statistical and neural forecasting models with honest data adequacy checks.
+            Short-horizon forecasts fitted to each junction's stored history, offered only when
+            they measurably beat repeating the last value.
           </p>
         </div>
 
-        {intersections.length > 0 && (
-          <select
-            className="its-select"
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            style={{ width: '240px' }}
-          >
-            {intersections.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name} ({i.code})
-              </option>
-            ))}
-          </select>
+        {intersections && intersections.length > 0 && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <select className="its-select" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} style={{ width: '220px' }}>
+              {intersections.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name} ({i.code})
+                </option>
+              ))}
+            </select>
+            <select className="its-select" value={metric} onChange={(e) => setMetric(e.target.value)}>
+              {METRIC_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
 
-      {/* Model Registry Overview */}
+      {/* Registry: only what the backend actually returns. */}
       <div className="its-card" style={{ marginBottom: '20px' }}>
         <div className="its-card-header">
           <span className="its-card-title">
             <Cpu size={16} />
-            <span>Production Model Registry</span>
+            <span>Model Registry</span>
           </span>
-          <StatusBadge status={modelsData?.status || 'NOT_CONFIGURED'} />
+          <StatusBadge status={modelsError ? 'ERROR' : modelsData?.status || 'UNKNOWN'} />
         </div>
-
-        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', marginBottom: '12px' }}>
-          Every AI forecasting component enforces defined input features, training dataset lineage, evaluation metrics (MAE, RMSE), and latency monitoring.
-        </div>
-
-        <div className="grid-3">
-          <div style={{ background: 'var(--its-bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--its-border-subtle)' }}>
-            <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: '4px' }}>Temporal Trend Predictor</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Version: <span className="mono">v1.2.0</span> | Provider: Scikit-learn / PyTorch</div>
-            <div style={{ fontSize: 'var(--text-xs)', marginTop: '8px' }}>Validation MAE: <b>3.42 veh</b> | RMSE: <b>4.81</b></div>
-            <div style={{ marginTop: '8px' }}><StatusBadge status="ACTIVE" /></div>
+        {modelsError ? (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-status-critical)' }}>{modelsError}</div>
+        ) : registered.length === 0 ? (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', lineHeight: 1.6 }}>
+            No models are registered. The forecaster below is not a registered model: it fits an
+            ARIMA(p,d,0) model to the selected junction's stored history on each request and reports
+            that fit's measured backtest error. No accuracy figure is shown for any model that has
+            not been evaluated.
           </div>
-
-          <div style={{ background: 'var(--its-bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--its-border-subtle)' }}>
-            <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: '4px' }}>Max-Pressure Signal Optimizer</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Version: <span className="mono">max_pressure_v2.1</span></div>
-            <div style={{ fontSize: 'var(--text-xs)', marginTop: '8px' }}>Policy: Queue Minimization & Delay Equalization</div>
-            <div style={{ marginTop: '8px' }}><StatusBadge status="ACTIVE" /></div>
+        ) : (
+          <div className="its-table-container">
+            <table className="its-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Version</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registered.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.name}</td>
+                    <td className="mono">{m.version ?? '--'}</td>
+                    <td>{m.status ?? '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          <div style={{ background: 'var(--its-bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--its-border-subtle)' }}>
-            <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: '4px' }}>Incident Pattern Detector</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-muted)' }}>Version: <span className="mono">v0.9.4-shadow</span></div>
-            <div style={{ fontSize: 'var(--text-xs)', marginTop: '8px' }}>Precision: <b>92.1%</b> | Recall: <b>88.4%</b></div>
-            <div style={{ marginTop: '8px' }}><StatusBadge status="AGING" /></div>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Forecast Panel with Honest State */}
       <div className="its-card">
         <div className="its-card-header">
           <span className="its-card-title">
             <TrendingUp size={16} />
-            <span>Demand Forecast: {forecast?.intersection_name || 'Select Intersection'}</span>
+            <span>Forecast: {forecast?.intersection_name || 'Select a junction'}</span>
           </span>
-          <StatusBadge status={forecast?.forecast_status || 'NO_DATA'} />
+          <button className="its-btn its-btn-sm" onClick={() => void load()} disabled={!selectedId}>
+            <RefreshCw size={13} /> Refresh
+          </button>
         </div>
 
-        {forecast?.forecast_status === 'INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST' ? (
+        {intersections && intersections.length === 0 && (
           <TruthfulEmptyState
-            title="INSUFFICIENT DATA FOR RELIABLE FORECAST"
-            description={`Logged historical observations: ${forecast.historical_observations_count} / ${forecast.observations_required_threshold} required. TRAFFICINTEL AI strictly prohibits generating synthetic forecast lines when observations are statistically inadequate.`}
-            icon={<Database size={36} />}
+            title="NO JUNCTIONS CONFIGURED"
+            description="A forecast is fitted to one junction's stored telemetry. Configure a junction and connect a source that reports to it."
+            actionText="Configure intersections"
+            actionLink="/intersections"
           />
-        ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--its-text-secondary)', fontSize: 'var(--text-sm)' }}>
-            Forecast computation ready.
+        )}
+        {loading && <SkeletonRows rows={5} label="Fitting and backtesting candidate models" />}
+        {!loading && error && (
+          <div style={{ padding: '14px', fontSize: '11px', color: 'var(--its-status-critical)' }}>
+            FORECAST UNAVAILABLE - {error}
           </div>
         )}
+        {!loading && !error && forecast && <ForecastPanel result={forecast} />}
       </div>
     </div>
   );

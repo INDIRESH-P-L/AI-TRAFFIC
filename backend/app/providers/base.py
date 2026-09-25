@@ -47,6 +47,17 @@ class SignalControllerProvider(ABC):
         """Query controller MMU/CMU conflict monitor unit fault log."""
         pass
 
+    def write_timing_plan(self, pattern_number: int, cycle_sec: int, offset_sec: int,
+                          splits: Dict[int, int], coord_phase: int) -> Tuple[bool, str, Dict[str, Any]]:
+        """Write and activate a coordination plan. Refused unless implemented.
+
+        Deliberately not abstract: most adapters have no timing-plan channel,
+        and the honest default is a refusal the caller can record.
+        """
+        return False, "This adapter has no timing-plan channel.", {
+            "rejected_reason": "NO_COMMAND_CHANNEL_FOR_TIMING_PLAN"
+        }
+
 
 class CameraProvider(ABC):
     """Abstract interface for video cameras (RTSP / ONVIF / Edge Ingest)."""
@@ -83,3 +94,25 @@ class WeatherProvider(ABC):
     def fetch_weather(self, latitude: float, longitude: float) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Fetch real weather observations from GIS/meteorological service."""
         pass
+
+
+class TransitProvider(ABC):
+    """Abstract interface for real-time transit vehicle feeds (GTFS-Realtime).
+
+    Implementations return the bytes an agency actually served - never a
+    fabricated vehicle. With no feed configured, `configured` is False and the
+    platform reports TRANSIT_FEED_NOT_CONFIGURED rather than an empty network.
+    """
+
+    @property
+    @abstractmethod
+    def configured(self) -> bool:
+        """Whether a feed endpoint has been configured at all."""
+
+    @abstractmethod
+    def fetch_vehicle_positions(self) -> Tuple[bool, str, Optional[bytes]]:
+        """Fetch the VehiclePositions feed."""
+
+    @abstractmethod
+    def fetch_trip_updates(self) -> Tuple[bool, str, Optional[bytes]]:
+        """Fetch the TripUpdates feed (schedule adherence)."""

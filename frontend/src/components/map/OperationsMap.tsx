@@ -12,6 +12,7 @@ import {
 import type { Provenance, QualityState, QualityThresholds } from '../../lib/quality';
 import { clusterFeatures, worstQuality } from './clustering';
 import type { ClusterableFeature } from './clustering';
+import { renderLayerGlyph } from './mapIcons';
 
 /**
  * TRAFFICINTEL AI - Layered GIS Operations Map
@@ -99,7 +100,10 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
   const [activeLayers, setActiveLayers] = useState<Set<LayerId>>(
     () => new Set<LayerId>(['junctions', 'incidents']),
   );
-  const [basemap, setBasemap] = useState<'esri' | 'osm'>('esri');
+  // Dark by default: the console's own background is #0b1120, and a
+  // bright basemap under a dark UI is the single biggest thing that makes
+  // this look like a demo rather than an operations console.
+  const [basemap, setBasemap] = useState<'dark' | 'esri' | 'osm'>('dark');
   const [zoom, setZoom] = useState(13);
   const [hover, setHover] = useState<HoverTarget | null>(null);
   const [areaMode, setAreaMode] = useState(false);
@@ -168,7 +172,21 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
     tileLayerRef.current?.remove();
     refLayerRef.current?.remove();
 
-    if (basemap === 'esri') {
+    if (basemap === 'dark') {
+      // CARTO dark-matter: no API key, free for reasonable use with
+      // attribution. Muted enough that quality-coloured markers stay the
+      // brightest thing on screen, which is the point of colouring them at
+      // all.
+      tileLayerRef.current = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        {
+          attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 19,
+        },
+      ).addTo(map);
+      refLayerRef.current = null;
+    } else if (basemap === 'esri') {
       tileLayerRef.current = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
         { attribution: '&copy; Esri', maxZoom: 18 },
@@ -328,10 +346,16 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
         // ---- Cluster bubble ----
         if (cluster.members.length > 1) {
           const size = Math.min(52, 30 + String(cluster.members.length).length * 7);
+          // Pulses only for the same condition the rest of the console
+          // already renders as red (STALE/INVALID) - reusing that judgment
+          // rather than inventing a second notion of "urgent" that could
+          // disagree with it. DISCONNECTED stays calm on purpose: expected
+          // equipment dropouts are not alarms.
+          const isUrgent = appearance.color === 'var(--its-signal-red)';
           const marker = L.marker([cluster.latitude, cluster.longitude], {
             icon: L.divIcon({
               className: '',
-              html: `<div class="toc-cluster" style="width:${size}px;height:${size}px;background:${appearance.color};font-size:${size / 3}px;">${cluster.members.length}</div>`,
+              html: `<div class="toc-cluster${isUrgent ? ' toc-cluster--urgent' : ''}" style="width:${size}px;height:${size}px;background:${appearance.color};font-size:${size / 3}px;">${cluster.members.length}</div>`,
               iconSize: [size, size],
               iconAnchor: [size / 2, size / 2],
             }),
@@ -367,6 +391,13 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
         const isSelected = selectedId === feature.id;
         const size = isSelected ? 30 : layerId === 'junctions' ? 20 : 16;
 
+        // The glyph is the same shape shown in the layer legend and chosen for
+        // this layer in LAYER_META, so identifying a marker's device type does
+        // not require clicking it first - a generic dot never told an operator
+        // whether they were looking at a camera or a loop sensor.
+        const glyphSize = Math.max(10, Math.round(size * 0.6));
+        const glyph = renderLayerGlyph(layerId, glyphSize, appearance.color);
+
         const marker = L.marker([feature.latitude, feature.longitude], {
           icon: L.divIcon({
             className: '',
@@ -380,7 +411,7 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
                   display:flex;align-items:center;justify-content:center;
                   box-shadow:var(--shadow-sm);
                 ">
-                  <div style="width:${Math.max(4, size / 3)}px;height:${Math.max(4, size / 3)}px;border-radius:50%;background:${appearance.color};"></div>
+                  ${glyph}
                 </div>
               </div>`,
             iconSize: [size, size],
@@ -612,13 +643,15 @@ export const OperationsMap: React.FC<OperationsMapProps> = ({
         </button>
 
         <button
-          onClick={() => setBasemap(b => (b === 'esri' ? 'osm' : 'esri'))}
+          onClick={() =>
+            setBasemap(b => (b === 'dark' ? 'esri' : b === 'esri' ? 'osm' : 'dark'))
+          }
           className="its-btn"
           style={toolbarBtn}
           title="Switch basemap"
         >
           <Layers size={13} />
-          <span>{basemap === 'esri' ? 'ESRI' : 'OSM'}</span>
+          <span>{basemap === 'dark' ? 'DARK' : basemap === 'esri' ? 'ESRI' : 'OSM'}</span>
         </button>
       </div>
 

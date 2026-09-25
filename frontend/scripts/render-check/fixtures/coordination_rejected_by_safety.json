@@ -1,0 +1,430 @@
+{
+ "plan_id": "139e50cf-03cb-4bc0-9cc6-c8066f182e1e",
+ "corridor_id": "2b560dae-17a7-471a-bfe3-0344d3f30f5b",
+ "status": "REJECTED_BY_SAFETY",
+ "direction": "ASCENDING",
+ "design_speed_kph": 50.0,
+ "speed_basis": "OPERATOR_ENTERED",
+ "cycle_sec": 40,
+ "cycle_basis": "CRITICAL_JUNCTION_WEBSTER_OPTIMUM (CoordSafe J1)",
+ "coord_phase": 2,
+ "junction_plans": [
+  {
+   "intersection_id": "e9500b7d-7281-4449-90d1-4158cf061b55",
+   "name": "CoordSafe J1",
+   "controller_id": "9b8627b4-6090-423f-a6e7-fa7c4fc64188",
+   "position_m": 0.0,
+   "travel_time_from_origin_sec": 0.0,
+   "offset_sec": 0,
+   "cycle_sec": 40,
+   "coord_phase": 2,
+   "coordinated_green_sec": 16,
+   "splits": {
+    "2": 22,
+    "4": 18,
+    "6": 22,
+    "8": 18
+   },
+   "own_optimum_cycle_sec": 40,
+   "minimum_feasible_cycle_sec": 30,
+   "demand_source": "OPERATOR_ENTERED",
+   "webster_trace": [
+    {
+     "symbol": "y_i",
+     "label": "Flow ratio per critical movement",
+     "value": {
+      "Barrier 1 critical": 0.2368,
+      "Barrier 2 critical": 0.1842
+     },
+     "formula": "y = q / s",
+     "source": "measured or operator-entered volume / saturation flow"
+    },
+    {
+     "symbol": "Y",
+     "label": "Sum of critical flow ratios",
+     "value": 0.4211,
+     "formula": "Y = sum(y_i)",
+     "source": "derived"
+    },
+    {
+     "symbol": "L",
+     "label": "Total lost time per cycle",
+     "value": 12.0,
+     "formula": "L = 6.0 s/phase x 2 phases",
+     "source": "HCM default startup + clearance lost time"
+    },
+    {
+     "symbol": "C0",
+     "label": "Webster optimum cycle length",
+     "value": 39.7,
+     "formula": "C0 = (1.5L + 5) / (1 - Y) = (1.5 x 12.0 + 5) / (1 - 0.4211)",
+     "source": "Webster 1958, RRL Technical Paper No. 39"
+    },
+    {
+     "symbol": "C",
+     "label": "Common corridor cycle length",
+     "value": 40,
+     "formula": "C = imposed common cycle (this junction's own optimum would be 40s)",
+     "source": "coordination: every junction on the green wave runs one cycle"
+    },
+    {
+     "symbol": "g_i",
+     "label": "Effective green per phase",
+     "value": {
+      "Barrier 1 critical": 15.8,
+      "Barrier 2 critical": 12.2
+     },
+     "formula": "g_i = (C - L) x y_i / Y, clamped to [min_green, max_green]",
+     "source": "Webster split allocation, bounded by controller configuration"
+    },
+    {
+     "symbol": "x_i",
+     "label": "Degree of saturation (v/c) per movement",
+     "value": {
+      "Barrier 1 critical": 0.602,
+      "Barrier 2 critical": 0.602
+     },
+     "formula": "x = q / (s x g/C)",
+     "source": "HCM 6th ed. capacity relationship"
+    },
+    {
+     "symbol": "d",
+     "label": "Webster delay per movement",
+     "value": {
+      "Barrier 1 critical": 11.4,
+      "Barrier 2 critical": 16.5
+     },
+     "formula": "d = C(1-g/C)^2 / (2(1-(g/C)x)) + x^2 / (2q(1-x))",
+     "source": "Webster 1958 uniform + random delay"
+    }
+   ]
+  },
+  {
+   "intersection_id": "9d7486e6-353a-4d43-9381-9a378f4102d8",
+   "name": "CoordSafe J2",
+   "controller_id": "7aa78509-4ee6-4a31-9632-568928bd237f",
+   "position_m": 444.8,
+   "travel_time_from_origin_sec": 32.0,
+   "offset_sec": 32,
+   "cycle_sec": 40,
+   "coord_phase": 2,
+   "coordinated_green_sec": 16,
+   "splits": {
+    "2": 22,
+    "4": 18,
+    "6": 22,
+    "8": 18
+   },
+   "own_optimum_cycle_sec": 40,
+   "minimum_feasible_cycle_sec": 30,
+   "demand_source": "OPERATOR_ENTERED",
+   "webster_trace": [
+    {
+     "symbol": "y_i",
+     "label": "Flow ratio per critical movement",
+     "value": {
+      "Barrier 1 critical": 0.2368,
+      "Barrier 2 critical": 0.1842
+     },
+     "formula": "y = q / s",
+     "source": "measured or operator-entered volume / saturation flow"
+    },
+    {
+     "symbol": "Y",
+     "label": "Sum of critical flow ratios",
+     "value": 0.4211,
+     "formula": "Y = sum(y_i)",
+     "source": "derived"
+    },
+    {
+     "symbol": "L",
+     "label": "Total lost time per cycle",
+     "value": 12.0,
+     "formula": "L = 6.0 s/phase x 2 phases",
+     "source": "HCM default startup + clearance lost time"
+    },
+    {
+     "symbol": "C0",
+     "label": "Webster optimum cycle length",
+     "value": 39.7,
+     "formula": "C0 = (1.5L + 5) / (1 - Y) = (1.5 x 12.0 + 5) / (1 - 0.4211)",
+     "source": "Webster 1958, RRL Technical Paper No. 39"
+    },
+    {
+     "symbol": "C",
+     "label": "Common corridor cycle length",
+     "value": 40,
+     "formula": "C = imposed common cycle (this junction's own optimum would be 40s)",
+     "source": "coordination: every junction on the green wave runs one cycle"
+    },
+    {
+     "symbol": "g_i",
+     "label": "Effective green per phase",
+     "value": {
+      "Barrier 1 critical": 15.8,
+      "Barrier 2 critical": 12.2
+     },
+     "formula": "g_i = (C - L) x y_i / Y, clamped to [min_green, max_green]",
+     "source": "Webster split allocation, bounded by controller configuration"
+    },
+    {
+     "symbol": "x_i",
+     "label": "Degree of saturation (v/c) per movement",
+     "value": {
+      "Barrier 1 critical": 0.602,
+      "Barrier 2 critical": 0.602
+     },
+     "formula": "x = q / (s x g/C)",
+     "source": "HCM 6th ed. capacity relationship"
+    },
+    {
+     "symbol": "d",
+     "label": "Webster delay per movement",
+     "value": {
+      "Barrier 1 critical": 11.4,
+      "Barrier 2 critical": 16.5
+     },
+     "formula": "d = C(1-g/C)^2 / (2(1-(g/C)x)) + x^2 / (2q(1-x))",
+     "source": "Webster 1958 uniform + random delay"
+    }
+   ]
+  }
+ ],
+ "bandwidth": {
+  "design_direction_sec": 16.0,
+  "design_direction_efficiency": 0.4,
+  "opposite_direction_sec": 0.0,
+  "opposite_direction_efficiency": 0.0,
+  "narrowest_coordinated_green_sec": 16,
+  "basis": "Computed at 0.1s resolution from the planned offsets and coordinated-phase greens, assuming vehicles travel at the design speed. Optimising one direction usually narrows the other; both are reported."
+ },
+ "safety": {
+  "all_passed": false,
+  "per_junction": [
+   {
+    "intersection_id": "e9500b7d-7281-4449-90d1-4158cf061b55",
+    "name": "CoordSafe J1",
+    "is_safe": false,
+    "violations": [
+     "Phase pair(s) [(2, 6)] share a barrier in opposite rings, so this plan would run them together, but they are configured as conflicting."
+    ],
+    "checks": [
+     {
+      "code": "IDEMPOTENCY_VERIFICATION",
+      "label": "Duplicate command",
+      "passed": true,
+      "detail": "This timing plan has not been issued before.",
+      "standard": null
+     },
+     {
+      "code": "COMMAND_FRESHNESS_CHECK",
+      "label": "Command freshness",
+      "passed": true,
+      "detail": "Plan age 0.00s is within the 5.0s window.",
+      "standard": "Stale-command protection"
+     },
+     {
+      "code": "CONTROLLER_STATE_VALIDATION",
+      "label": "Controller state readable",
+      "passed": true,
+      "detail": "Controller 'Fixture cabinet' has a live protocol session.",
+      "standard": null
+     },
+     {
+      "code": "CONTROLLER_CAPABILITY_CHECK",
+      "label": "Timing plan channel",
+      "passed": true,
+      "detail": "Protocol NTCIP_1202 has an implemented timing-plan channel.",
+      "standard": null
+     },
+     {
+      "code": "CYCLE_LENGTH_BOUNDS",
+      "label": "Cycle length within bounds",
+      "passed": true,
+      "detail": "Cycle 40s is within [30, 180]s.",
+      "standard": null
+     },
+     {
+      "code": "OFFSET_RANGE_CHECK",
+      "label": "Offset within cycle",
+      "passed": true,
+      "detail": "Offset 0s lies within the 40s cycle.",
+      "standard": null
+     },
+     {
+      "code": "PHASE_CONFIGURATION_LOOKUP",
+      "label": "Splits match configured phases",
+      "passed": true,
+      "detail": "Every configured phase has a split and no split names an unknown phase.",
+      "standard": null
+     },
+     {
+      "code": "COORDINATED_PHASE_CHECK",
+      "label": "Coordinated phase present",
+      "passed": true,
+      "detail": "Coordinated phase 2 has a split.",
+      "standard": null
+     },
+     {
+      "code": "SPLIT_CLEARANCE_CHECK",
+      "label": "Splits allow minimum green and clearance",
+      "passed": true,
+      "detail": "Every split covers minimum green, yellow change and all-red clearance.",
+      "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green and clearance"
+     },
+     {
+      "code": "MAX_GREEN_DURATION_CHECK",
+      "label": "Split green within maximum green",
+      "passed": true,
+      "detail": "No split's green exceeds the phase's configured maximum green.",
+      "standard": "NEMA TS 2 maximum green"
+     },
+     {
+      "code": "PEDESTRIAN_CLEARANCE_CHECK",
+      "label": "Pedestrian walk and clearance fit",
+      "passed": true,
+      "detail": "Every split's green accommodates its configured walk and pedestrian clearance.",
+      "standard": "MUTCD 4E.06 pedestrian intervals"
+     },
+     {
+      "code": "RING_SUM_CHECK",
+      "label": "Each ring sums to the cycle",
+      "passed": true,
+      "detail": "Ring totals {1: 40, 2: 40} each equal the 40s cycle.",
+      "standard": "NEMA TS 2 dual-ring structure"
+     },
+     {
+      "code": "BARRIER_ALIGNMENT_CHECK",
+      "label": "Rings cross each barrier together",
+      "passed": true,
+      "detail": "Both rings spend the same time in every barrier group, so neither crosses a barrier while the other is still green in the previous group.",
+      "standard": "NEMA TS 2 dual-ring barrier"
+     },
+     {
+      "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+      "label": "Concurrent phases are compatible",
+      "passed": false,
+      "detail": "Phase pair(s) [(2, 6)] share a barrier in opposite rings, so this plan would run them together, but they are configured as conflicting.",
+      "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+     }
+    ]
+   },
+   {
+    "intersection_id": "9d7486e6-353a-4d43-9381-9a378f4102d8",
+    "name": "CoordSafe J2",
+    "is_safe": false,
+    "violations": [
+     "Phase pair(s) [(2, 6)] share a barrier in opposite rings, so this plan would run them together, but they are configured as conflicting."
+    ],
+    "checks": [
+     {
+      "code": "IDEMPOTENCY_VERIFICATION",
+      "label": "Duplicate command",
+      "passed": true,
+      "detail": "This timing plan has not been issued before.",
+      "standard": null
+     },
+     {
+      "code": "COMMAND_FRESHNESS_CHECK",
+      "label": "Command freshness",
+      "passed": true,
+      "detail": "Plan age 0.00s is within the 5.0s window.",
+      "standard": "Stale-command protection"
+     },
+     {
+      "code": "CONTROLLER_STATE_VALIDATION",
+      "label": "Controller state readable",
+      "passed": true,
+      "detail": "Controller 'Fixture cabinet' has a live protocol session.",
+      "standard": null
+     },
+     {
+      "code": "CONTROLLER_CAPABILITY_CHECK",
+      "label": "Timing plan channel",
+      "passed": true,
+      "detail": "Protocol NTCIP_1202 has an implemented timing-plan channel.",
+      "standard": null
+     },
+     {
+      "code": "CYCLE_LENGTH_BOUNDS",
+      "label": "Cycle length within bounds",
+      "passed": true,
+      "detail": "Cycle 40s is within [30, 180]s.",
+      "standard": null
+     },
+     {
+      "code": "OFFSET_RANGE_CHECK",
+      "label": "Offset within cycle",
+      "passed": true,
+      "detail": "Offset 32s lies within the 40s cycle.",
+      "standard": null
+     },
+     {
+      "code": "PHASE_CONFIGURATION_LOOKUP",
+      "label": "Splits match configured phases",
+      "passed": true,
+      "detail": "Every configured phase has a split and no split names an unknown phase.",
+      "standard": null
+     },
+     {
+      "code": "COORDINATED_PHASE_CHECK",
+      "label": "Coordinated phase present",
+      "passed": true,
+      "detail": "Coordinated phase 2 has a split.",
+      "standard": null
+     },
+     {
+      "code": "SPLIT_CLEARANCE_CHECK",
+      "label": "Splits allow minimum green and clearance",
+      "passed": true,
+      "detail": "Every split covers minimum green, yellow change and all-red clearance.",
+      "standard": "MUTCD 4D.26 / NEMA TS 2 minimum green and clearance"
+     },
+     {
+      "code": "MAX_GREEN_DURATION_CHECK",
+      "label": "Split green within maximum green",
+      "passed": true,
+      "detail": "No split's green exceeds the phase's configured maximum green.",
+      "standard": "NEMA TS 2 maximum green"
+     },
+     {
+      "code": "PEDESTRIAN_CLEARANCE_CHECK",
+      "label": "Pedestrian walk and clearance fit",
+      "passed": true,
+      "detail": "Every split's green accommodates its configured walk and pedestrian clearance.",
+      "standard": "MUTCD 4E.06 pedestrian intervals"
+     },
+     {
+      "code": "RING_SUM_CHECK",
+      "label": "Each ring sums to the cycle",
+      "passed": true,
+      "detail": "Ring totals {1: 40, 2: 40} each equal the 40s cycle.",
+      "standard": "NEMA TS 2 dual-ring structure"
+     },
+     {
+      "code": "BARRIER_ALIGNMENT_CHECK",
+      "label": "Rings cross each barrier together",
+      "passed": true,
+      "detail": "Both rings spend the same time in every barrier group, so neither crosses a barrier while the other is still green in the previous group.",
+      "standard": "NEMA TS 2 dual-ring barrier"
+     },
+     {
+      "code": "PHASE_CONFLICT_MATRIX_VALIDATION",
+      "label": "Concurrent phases are compatible",
+      "passed": false,
+      "detail": "Phase pair(s) [(2, 6)] share a barrier in opposite rings, so this plan would run them together, but they are configured as conflicting.",
+      "standard": "NEMA TS 2 dual-ring barrier conflict matrix"
+     }
+    ]
+   }
+  ]
+ },
+ "uncoordinated": [],
+ "created_by": "fixture",
+ "created_at": "2026-09-25T06:56:01.153137",
+ "applied_by": null,
+ "applied_at": null,
+ "apply_results": null,
+ "time_reference_note": "Offsets assume the controllers share a synchronised time reference (GPS or NTP). The platform cannot verify controller clock sync; use /coordination/plans/{id}/verify after applying to compare planned offsets with those the stringline observes.",
+ "method_version": "green-wave-webster-v1"
+}

@@ -93,6 +93,23 @@ def isolated_database():
     _remove_test_db()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def fresh_rate_limit_buckets():
+    """Gives each test module its own rate-limit buckets.
+
+    The limiter is per-process and every TestClient request comes from the same
+    address, so without this the modules share one login budget (10 per five
+    minutes) and whether a module can log in depends on how many ran before it.
+    That was observed: adding one module's logins pushed a later module into
+    429s. Reset per module, not per test, so a module that exercises the
+    limiter still sees its own requests accumulate.
+    """
+    from app.governance.rate_limit import rate_limiter
+
+    rate_limiter.reset()
+    yield
+
+
 @pytest.fixture
 def db_session():
     """Per-test session against the isolated database."""

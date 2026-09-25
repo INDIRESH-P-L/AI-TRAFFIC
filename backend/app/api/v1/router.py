@@ -31,6 +31,8 @@ from app.api.v1.endpoints import (
     reports,
     insights,
     readiness,
+    intelligence,
+    coordination,
 )
 
 api_router = APIRouter()
@@ -63,3 +65,5 @@ api_router.include_router(governance.router)
 api_router.include_router(ingest.router)
 api_router.include_router(reports.router)
 api_router.include_router(insights.router)
+api_router.include_router(intelligence.router)
+api_router.include_router(coordination.router)

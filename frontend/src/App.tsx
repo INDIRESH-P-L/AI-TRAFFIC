@@ -30,6 +30,8 @@ import { Governance } from './pages/Governance';
 import { DataTrust } from './pages/DataTrust';
 import { Stringline } from './pages/Stringline';
 import { ShiftHandover } from './pages/ShiftHandover';
+import { GroundedIntelligence } from './pages/GroundedIntelligence';
+import { Coordination } from './pages/Coordination';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -108,6 +110,8 @@ export const App: React.FC = () => {
             <Route path="data-trust" element={<DataTrust />} />
             <Route path="stringline" element={<Stringline />} />
             <Route path="handover" element={<ShiftHandover />} />
+            <Route path="intelligence" element={<GroundedIntelligence />} />
+            <Route path="coordination" element={<Coordination />} />
           </Route>
 
           {/* Catch-all */}

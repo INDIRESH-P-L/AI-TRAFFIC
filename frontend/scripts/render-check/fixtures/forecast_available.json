@@ -1,0 +1,254 @@
+{
+ "intersection_id": "511074d0-6efb-46ce-a9ae-0b46b6701603",
+ "intersection_name": "Fixture FC-GOOD",
+ "metric": "flow_rate_vph",
+ "metric_label": "Throughput",
+ "unit": "veh/h",
+ "as_of": "2026-03-10T14:00:00",
+ "bin_minutes": 15,
+ "horizon_bins": 4,
+ "method_version": "arima-p-d-0-cls-v1",
+ "stamp": "SCENARIO / HYPOTHETICAL",
+ "data_kind": "MODEL_FORECAST",
+ "model": {
+  "family": "ARIMA(p,d,0) - autoregressive, no moving-average terms",
+  "order": "ARIMA(3,0,0)",
+  "p": 3,
+  "d": 0,
+  "intercept": 69.144427,
+  "ar_coefficients": [
+   1.238939,
+   0.333983,
+   -0.688214
+  ],
+  "residual_std": 4.8974,
+  "residual_degrees_of_freedom": 113,
+  "estimation": "Conditional least squares (normal equations, partial pivoting)",
+  "training_bins": 120
+ },
+ "backtest": {
+  "method": "Rolling-origin: refit at each origin on data before it only, no look-ahead",
+  "origins": 12,
+  "horizon_bins": 4,
+  "forecast_errors_per_model": 48,
+  "persistence_mae": 101.5431,
+  "persistence_definition": "Every future bin equals the last observed bin",
+  "minimum_skill_required": 0.1,
+  "candidates": [
+   {
+    "order": "ARIMA(1,0,0)",
+    "p": 1,
+    "d": 0,
+    "status": "EVALUATED",
+    "mae": 100.1609,
+    "rmse": 120.7944,
+    "interval_coverage_95": 0.75
+   },
+   {
+    "order": "ARIMA(2,0,0)",
+    "p": 2,
+    "d": 0,
+    "status": "EVALUATED",
+    "mae": 9.8696,
+    "rmse": 12.7322,
+    "interval_coverage_95": 0.979
+   },
+   {
+    "order": "ARIMA(3,0,0)",
+    "p": 3,
+    "d": 0,
+    "status": "EVALUATED",
+    "mae": 5.9181,
+    "rmse": 7.3755,
+    "interval_coverage_95": 1.0
+   },
+   {
+    "order": "ARIMA(1,1,0)",
+    "p": 1,
+    "d": 1,
+    "status": "EVALUATED",
+    "mae": 53.5675,
+    "rmse": 71.2697,
+    "interval_coverage_95": 0.875
+   },
+   {
+    "order": "ARIMA(2,1,0)",
+    "p": 2,
+    "d": 1,
+    "status": "EVALUATED",
+    "mae": 37.3257,
+    "rmse": 49.4928,
+    "interval_coverage_95": 0.979
+   },
+   {
+    "order": "ARIMA(3,1,0)",
+    "p": 3,
+    "d": 1,
+    "status": "EVALUATED",
+    "mae": 21.0361,
+    "rmse": 25.958,
+    "interval_coverage_95": 1.0
+   }
+  ],
+  "selected_order": "ARIMA(3,0,0)",
+  "selected_mae": 5.9181,
+  "selected_rmse": 7.3755,
+  "selected_interval_coverage_95": 1.0,
+  "skill_vs_persistence": 0.9417
+ },
+ "forecast_points": [
+  {
+   "step": 1,
+   "bin_start": "2026-03-10T14:00:00",
+   "value": 599.854,
+   "lower_95": 590.145,
+   "upper_95": 609.562,
+   "clipped_to_physical_bounds": false,
+   "kind": "MODEL_FORECAST"
+  },
+  {
+   "step": 2,
+   "bin_start": "2026-03-10T14:15:00",
+   "value": 666.123,
+   "lower_95": 650.666,
+   "upper_95": 681.58,
+   "clipped_to_physical_bounds": false,
+   "kind": "MODEL_FORECAST"
+  },
+  {
+   "step": 3,
+   "bin_start": "2026-03-10T14:30:00",
+   "value": 724.302,
+   "lower_95": 700.466,
+   "upper_95": 748.137,
+   "clipped_to_physical_bounds": false,
+   "kind": "MODEL_FORECAST"
+  },
+  {
+   "step": 4,
+   "bin_start": "2026-03-10T14:45:00",
+   "value": 776.156,
+   "lower_95": 745.159,
+   "upper_95": 807.152,
+   "clipped_to_physical_bounds": false,
+   "kind": "MODEL_FORECAST"
+  }
+ ],
+ "forecast_status": "FORECAST_AVAILABLE",
+ "refusal_reason": null,
+ "message": "ARIMA(3,0,0) forecast for the next 4 x 15-minute bins. Model output from this junction's stored history - not an observation.",
+ "history": {
+  "samples": 120,
+  "bins_filled": 120,
+  "bin_minutes": 15,
+  "in_progress_bin_excluded": true,
+  "recent_observed_bins": [
+   {
+    "bin_start": "2026-03-10T10:00:00",
+    "value": 819.623,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T10:15:00",
+    "value": 781.735,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T10:30:00",
+    "value": 721.12,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T10:45:00",
+    "value": 667.843,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T11:00:00",
+    "value": 600.65,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T11:15:00",
+    "value": 534.291,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T11:30:00",
+    "value": 479.495,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T11:45:00",
+    "value": 422.55,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T12:00:00",
+    "value": 381.046,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T12:15:00",
+    "value": 358.005,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T12:30:00",
+    "value": 353.687,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T12:45:00",
+    "value": 359.454,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T13:00:00",
+    "value": 387.168,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T13:15:00",
+    "value": 427.798,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T13:30:00",
+    "value": 473.672,
+    "samples": 1,
+    "kind": "MEASURED"
+   },
+   {
+    "bin_start": "2026-03-10T13:45:00",
+    "value": 538.305,
+    "samples": 1,
+    "kind": "MEASURED"
+   }
+  ],
+  "gap_free_run_bins": 120,
+  "gap_free_run_start": "2026-03-09T08:00:00",
+  "latest_complete_bin": "2026-03-10T13:45:00",
+  "missing_bins_in_history": 0,
+  "bins_required": 63
+ },
+ "caveats": [
+  "Each value is the forecast mean over the 15-minute bin starting at bin_start.",
+  "Intervals assume the fitted residuals are roughly normal; the measured backtest coverage shows whether that held on this junction's data.",
+  "The model knows only this junction's own history. It cannot anticipate an incident, an event or a timing-plan change."
+ ]
+}

@@ -163,6 +163,16 @@ class ReachabilityOnlyAdapter(SignalControllerProvider):
             {"rejected_reason": "NO_COMMAND_CHANNEL_FOR_PROTOCOL"},
         )
 
+    def write_timing_plan(self, pattern_number: int, cycle_sec: int, offset_sec: int,
+                          splits: Dict[int, int], coord_phase: int) -> Tuple[bool, str, Dict[str, Any]]:
+        return (
+            False,
+            "Controller protocol '{}' has no implemented channel for timing plans.".format(
+                self.protocol_name
+            ),
+            {"rejected_reason": "NO_COMMAND_CHANNEL_FOR_TIMING_PLAN"},
+        )
+
     def get_faults(self) -> list:
         """Unknown, not empty. An unread MMU fault log is not a clean one."""
         return []
@@ -480,6 +490,77 @@ class Ntcip1202Adapter(SignalControllerProvider):
             "status_group": group,
             "readback": readback,
             "acknowledged_at": time.time(),
+        }
+
+    def write_timing_plan(self, pattern_number: int, cycle_sec: int, offset_sec: int,
+                          splits: Dict[int, int], coord_phase: int) -> Tuple[bool, str, Dict[str, Any]]:
+        """Writes and activates a coordination pattern, then reads it back.
+
+        The whole plan goes in ONE SetRequest, which SNMPv1 applies atomically,
+        so the controller can never run a cycle from one plan with the splits of
+        another. Success of the SET is only the controller's acknowledgement;
+        the read-back that follows is what shows the values it now holds, and
+        `matches_request` is False if any of them differ from what was sent.
+        """
+        splits = {int(k): int(v) for k, v in splits.items()}
+        pairs = ntcip.timing_plan_varbinds(pattern_number, cycle_sec, offset_sec, splits, coord_phase)
+        request_id = self._request_id()
+        payload = snmp.build_set_request(self.write_community, request_id, pairs)
+        written = {oid: value for oid, value in pairs}
+
+        try:
+            self._request(payload, request_id)
+        except TimeoutError as exc:
+            return False, str(exc), {"rejected_reason": REASON_TIMEOUT, "oids_written": written}
+        except snmp.SnmpError as exc:
+            return False, "Controller rejected the timing plan: {}".format(exc), {
+                "rejected_reason": REASON_AGENT_ERROR,
+                "error_status": exc.error_status,
+                "error_index": exc.error_index,
+                "note": "SNMPv1 sets are atomic: none of this plan was applied.",
+            }
+        except (snmp.SnmpDecodeError, OSError) as exc:
+            return False, "Transport failure writing timing plan: {}".format(exc), {
+                "rejected_reason": REASON_MALFORMED,
+            }
+
+        readback = self.read_timing_plan(pattern_number, list(splits))
+        expected = {
+            "cycle_sec": int(cycle_sec), "offset_sec": int(offset_sec),
+            "splits": splits, "active_pattern": pattern_number,
+        }
+        observed = {
+            "cycle_sec": readback.get("cycle_sec"), "offset_sec": readback.get("offset_sec"),
+            "splits": readback.get("splits"), "active_pattern": readback.get("active_pattern"),
+        }
+        readback["matches_request"] = readback.get("readable", False) and observed == expected
+        readback["expected"] = expected
+        return True, "Controller acknowledged timing plan {} ({} varbinds)".format(
+            pattern_number, len(pairs)
+        ), {"readback": readback, "varbind_count": len(pairs), "acknowledged_at": time.time()}
+
+    def read_timing_plan(self, pattern_number: int, phases: List[int]) -> Dict[str, Any]:
+        """Reads the stored pattern, its splits and what the controller is running."""
+        oids = [
+            ntcip.pattern_oid(ntcip.COL_PATTERN_CYCLE_TIME, pattern_number),
+            ntcip.pattern_oid(ntcip.COL_PATTERN_OFFSET_TIME, pattern_number),
+            ntcip.COORD_PATTERN_STATUS_OID,
+            ntcip.COORD_CYCLE_STATUS_OID,
+        ] + [ntcip.split_oid(ntcip.COL_SPLIT_TIME, pattern_number, p) for p in phases]
+        try:
+            values = self._get(oids)
+        except (TimeoutError, snmp.SnmpError, snmp.SnmpDecodeError, OSError) as exc:
+            return {"readable": False, "reason": REASON_TIMEOUT if isinstance(exc, TimeoutError)
+                    else REASON_AGENT_ERROR, "detail": str(exc)}
+        return {
+            "readable": True,
+            "cycle_sec": values.get(oids[0]),
+            "offset_sec": values.get(oids[1]),
+            "active_pattern": values.get(oids[2]),
+            "position_in_cycle_sec": values.get(oids[3]),
+            "splits": {
+                p: values.get(ntcip.split_oid(ntcip.COL_SPLIT_TIME, pattern_number, p)) for p in phases
+            },
         }
 
     def get_faults(self) -> list:

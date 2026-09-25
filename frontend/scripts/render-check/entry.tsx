@@ -23,6 +23,27 @@ import verifyNoise from './fixtures/verify_noise.json';
 import verifyImproved from './fixtures/verify_improved.json';
 import verifyInsufficient from './fixtures/verify_insufficient.json';
 import handover from './fixtures/handover.json';
+import { AnomalyPanel } from '../../src/components/intelligence/AnomalyPanel';
+import { ForecastPanel } from '../../src/components/intelligence/ForecastPanel';
+import { FusionPanel } from '../../src/components/intelligence/FusionPanel';
+import anomalyMeasured from './fixtures/anomaly_measured.json';
+import anomalyInsufficient from './fixtures/anomaly_insufficient.json';
+import forecastAvailable from './fixtures/forecast_available.json';
+import forecastNoSkill from './fixtures/forecast_no_skill.json';
+import forecastNotComputable from './fixtures/forecast_not_computable.json';
+import fusionProbable from './fixtures/fusion_probable.json';
+import fusionUncorroborated from './fixtures/fusion_uncorroborated.json';
+import { CoordinationPlanPanel, CoordinationVerifyPanel } from '../../src/components/coordination/CoordinationPlanPanel';
+import { TspDecisionsPanel } from '../../src/components/transit/TspDecisionsPanel';
+import { PreemptionVerdict } from '../../src/components/emergency/PreemptionVerdict';
+import coordinationApplied from './fixtures/coordination_applied_live.json';
+import coordinationVerify from './fixtures/coordination_verify_live.json';
+import coordinationNotComputable from './fixtures/coordination_not_computable.json';
+import coordinationRejected from './fixtures/coordination_rejected_by_safety.json';
+import tspDryRun from './fixtures/tsp_dry_run.json';
+import preemptionActive from './fixtures/preemption_active.json';
+import preemptionRejected from './fixtures/preemption_rejected.json';
+import preemptionFailed from './fixtures/preemption_failed.json';
 
 let failures = 0;
 let checks = 0;
@@ -262,7 +283,155 @@ console.log('\n=== Truthful empty states ===');
   check('an empty stringline draws no axes at all', !bare.includes('<svg'));
 }
 
+console.log('\n=== AnomalyPanel: measured anomaly ===');
+{
+  const html = render('renders', <AnomalyPanel result={anomalyMeasured as any} />);
+  const t = text(html);
+  const flow = (anomalyMeasured as any).metrics.find((m: any) => m.metric === 'flow_rate_vph');
+  check('headline is MEASURED ANOMALY', t.includes('MEASURED ANOMALY'));
+  check('flagged value is on screen', t.includes(String(flow.flagged_points[0].value)));
+  check('flag names its source row', t.includes('traffic_metrics#'));
+  check('confidence never rounds up to 100%', !t.includes('100.00%'));
+  check('unrecorded metric is listed as not evaluated', t.includes('NOT EVALUATED'));
+  check('unrecorded metric says NOT COMPUTABLE with its reason',
+    t.includes('NOT COMPUTABLE') && t.includes('NO_STORED_VALUES_FOR_METRIC'));
+  check('states that no flag is not evidence of normal', t.includes('not evidence of normal conditions'));
+  check('fallback baseline caveat is visible', t.includes('does not account for the daily pattern'));
+}
+
+console.log('\n=== AnomalyPanel: insufficient baseline ===');
+{
+  const t = text(render('renders', <AnomalyPanel result={anomalyInsufficient as any} />));
+  check('says INSUFFICIENT DATA', t.includes('INSUFFICIENT DATA'));
+  check('names the reason', t.includes('BASELINE_TOO_SMALL'));
+  check('never renders MEASURED ANOMALY', !t.includes('MEASURED ANOMALY'));
+  check('shows candidate counts against the requirement', t.includes('required: 30'));
+}
+
+console.log('\n=== ForecastPanel: forecast available ===');
+{
+  const html = render('renders', <ForecastPanel result={forecastAvailable as any} />);
+  const t = text(html);
+  check('stamped SCENARIO / HYPOTHETICAL', t.includes('SCENARIO / HYPOTHETICAL'));
+  check('says model forecast, not observed', t.includes('NOT OBSERVED'));
+  check('draws the forecast as a distinct dashed series', html.includes('data-kind="MODEL_FORECAST"'));
+  check('labels the measured side of the chart', t.includes('MEASURED'));
+  check('shows the fitted order', t.includes((forecastAvailable as any).model.order));
+  check('shows persistence MAE beside model MAE', t.includes('PERSISTENCE MAE'));
+  check('shows measured interval coverage', t.includes('MEASURED 95% COVERAGE'));
+  check('names the model as having no MA terms', t.includes('no moving-average terms'));
+}
+
+console.log('\n=== ForecastPanel: refused for lack of skill ===');
+{
+  const html = render('renders', <ForecastPanel result={forecastNoSkill as any} />);
+  const t = text(html);
+  check('says INSUFFICIENT DATA FOR RELIABLE FORECAST', t.includes('INSUFFICIENT DATA FOR RELIABLE FORECAST'));
+  check('names the refusal reason', t.includes('NO_SKILL_OVER_PERSISTENCE'));
+  check('the refusal shows the model behind it', t.includes('A MODEL WAS FITTED AND MEASURED'));
+  check('no forecast line is drawn', !html.includes('data-kind="MODEL_FORECAST"'));
+  check('says no line is drawn for a refusal', t.includes('No forecast line is drawn'));
+  check('not stamped as an available scenario', !t.includes('MODEL FORECAST, NOT OBSERVED DATA'));
+}
+
+console.log('\n=== ForecastPanel: metric never recorded ===');
+{
+  const html = render('renders', <ForecastPanel result={forecastNotComputable as any} />);
+  const t = text(html);
+  check('says NOT COMPUTABLE', t.includes('NOT COMPUTABLE'));
+  check('explains waiting will not help', t.includes('Waiting will not help'));
+  // Matched on the chart's own label: the status icon is also an SVG.
+  check('draws no chart at all', !html.includes('Observed bins followed by model forecast'));
+}
+
+console.log('\n=== FusionPanel: corroborated probable incident ===');
+{
+  const html = render('renders', <FusionPanel result={fusionProbable as any} onRecord={() => undefined} />);
+  const t = text(html);
+  check('headline is PROBABLE INCIDENT', t.includes('PROBABLE INCIDENT'));
+  check('names both corroborating sources', t.includes('nb-loop-1') && t.includes('nb-radar-2'));
+  check('record action says it files DETECTED', t.includes('Record as DETECTED'));
+  check('record action says it verifies nothing', t.includes('does not verify anything'));
+  check('single-sensor segment is NOT COMPUTABLE', t.includes('FEWER_THAN_TWO_INDEPENDENT_SOURCES'));
+  check('lane-less source is reported, not placed', t.includes('UNATTRIBUTED SOURCES') && t.includes('roaming-probe'));
+  check('ratio is not presented as a probability', t.includes('not a probability'));
+}
+
+console.log('\n=== FusionPanel: one detector agreeing with itself ===');
+{
+  const t = text(render('renders', <FusionPanel result={fusionUncorroborated as any} onRecord={() => undefined} />));
+  check('segment is UNCORROBORATED SINGLE SOURCE', t.includes('UNCORROBORATED SINGLE SOURCE'));
+  check('names the dissenting source', t.includes('Evaluated, no symptom') && t.includes('nb-radar-2'));
+  check('offers no record action', !t.includes('Record as DETECTED'));
+}
+
+console.log('\n=== CoordinationPlanPanel: applied on a live corridor ===');
+{
+  const html = render('renders', <CoordinationPlanPanel plan={coordinationApplied as any} />);
+  const t = text(html);
+  check('says every controller applied', t.includes('APPLIED TO EVERY CONTROLLER'));
+  check('design speed is labelled not measured', t.includes('NOT MEASURED'));
+  check('names the cycle basis', t.includes((coordinationApplied as any).cycle_basis));
+  check('the diagram is labelled PLANNED, not observed', t.includes('(NOT OBSERVED)'));
+  check('planned windows are drawn as planned', html.includes('data-kind="PLANNED"'));
+  check('reports the opposite-direction band too', t.includes('OPPOSITE-DIRECTION BAND'));
+  check('every controller shows its read-back', t.includes('read-back matches'));
+  check('carries the clock-sync caveat', t.includes('cannot verify controller clock sync'));
+  check('never claims the wave works without verification', !t.includes('WORKING'));
+}
+
+console.log('\n=== CoordinationVerifyPanel: observed by the stringline ===');
+{
+  const t = text(render('renders', <CoordinationVerifyPanel result={coordinationVerify as any} />));
+  const segment = (coordinationVerify as any).segments[0];
+  check('headline is OBSERVED AS PLANNED', t.includes('OBSERVED AS PLANNED'));
+  check('shows planned beside observed', t.includes(`${segment.planned_offset_sec}s`) && t.includes(String(segment.observed_median_offset_sec)));
+  check('shows the tolerance used', t.includes('tol'));
+  check('states the observation basis', t.includes('measured by the stringline'));
+}
+
+console.log('\n=== CoordinationPlanPanel: refusals ===');
+{
+  const t = text(render('renders', <CoordinationPlanPanel plan={coordinationNotComputable as any} />));
+  check('says NOT COMPUTABLE', t.includes('NOT COMPUTABLE'));
+  check('names the refusal', t.includes('FEWER_THAN_TWO_COORDINATABLE_CONTROLLERS'));
+  check('lists why each junction cannot be coordinated',
+    t.includes('NO_CONTROLLER') && t.includes('PROTOCOL_HAS_NO_TIMING_PLAN_CHANNEL'));
+
+  const r = text(render('renders', <CoordinationPlanPanel plan={coordinationRejected as any} />));
+  check('rejected plan says REJECTED BY SAFETY ENGINE', r.includes('REJECTED BY SAFETY ENGINE'));
+  check('names the violated rule', r.includes('configured as conflicting'));
+  check('rejected plan shows no applied column', !r.includes('read-back'));
+}
+
+console.log('\n=== TspDecisionsPanel: dry run ===');
+{
+  const t = text(render('renders', <TspDecisionsPanel result={tspDryRun as any} />));
+  check('labelled as a dry run that sent nothing', t.includes('NOTHING SENT, NOTHING RECORDED'));
+  check('shows the would-request decision', t.includes('WOULD REQUEST GREEN EXTENSION'));
+  check('shows the on-time refusal with its reason', t.includes('NOT LATE ENOUGH'));
+  check('unknown lateness is shown as UNKNOWN, not 0', t.includes('UNKNOWN') && t.includes('NO SCHEDULE ADHERENCE DATA'));
+  check('a bus not near a junction is still listed', t.includes('BUS-FAR'));
+  check('states early green is not requested', t.includes('force-off'));
+}
+
+console.log('\n=== PreemptionVerdict ===');
+{
+  const active = text(render('active', <PreemptionVerdict verdict={preemptionActive as any} />));
+  check('active says the controller acknowledged', active.includes('CONTROLLER ACKNOWLEDGED'));
+
+  const failed = text(render('failed', <PreemptionVerdict verdict={preemptionFailed as any} />));
+  check('failed says the controller did not acknowledge', failed.includes('DID NOT ACKNOWLEDGE'));
+  check('failed says no preemption is in effect', failed.includes('NO PREEMPTION IS IN EFFECT'));
+  check('failed is never rendered as granted or active',
+    !failed.includes('GRANTED') && !failed.includes('PREEMPTION ACTIVE'));
+
+  const rejected = text(render('rejected', <PreemptionVerdict verdict={preemptionRejected as any} />));
+  check('rejected says nothing was sent', rejected.includes('NOTHING WAS SENT'));
+  check('rejected lists the violation', rejected.includes('conflicts with active Phase'));
+}
+
 console.log('\n' + '='.repeat(62));
 console.log(checks + ' checks, ' + failures + ' failed');
 if (failures > 0) process.exit(1);
-console.log('ALL PHASE 3 COMPONENTS RENDER TRUTHFULLY');
+console.log('ALL CHECKED COMPONENTS RENDER TRUTHFULLY');

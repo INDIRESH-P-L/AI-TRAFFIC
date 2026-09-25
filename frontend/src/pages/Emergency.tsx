@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
 import { TruthfulEmptyState } from '../components/TruthfulEmptyState';
 import { Siren, RefreshCw } from 'lucide-react';
+import { PreemptionVerdict } from '../components/emergency/PreemptionVerdict';
 
 export const Emergency: React.FC = () => {
   const [data, setData] = useState<any>(null);
@@ -10,7 +11,7 @@ export const Emergency: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Preemption Test Dispatch
-  const [vehicleId, setVehicleId] = useState('MED-402');
+  const [vehicleId, setVehicleId] = useState('');
   const [vehicleType, setVehicleType] = useState('AMBULANCE');
   const [intersectionId, setIntersectionId] = useState('');
   const [targetPhase, setTargetPhase] = useState(2);
@@ -41,7 +42,7 @@ export const Emergency: React.FC = () => {
 
   const handleSubmitPreemption = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!intersectionId) return;
+    if (!intersectionId || !vehicleId.trim()) return;
     setSubmitting(true);
     try {
       // The response carries the Deterministic Safety Engine's verdict. A call
@@ -84,7 +85,14 @@ export const Emergency: React.FC = () => {
             <h1 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--its-text-primary)' }}>
               EMERGENCY VEHICLE PREEMPTION (EVP)
             </h1>
-            <span className="status-badge active">OPTICAL / GPS CAD</span>
+            {/* Describes what the platform accepts, not a connection it has not
+                measured: nothing here knows whether a CAD/AVL unit is reporting. */}
+            <span
+              className="status-badge"
+              title="Vehicles report positions (NMEA RMC) to POST /api/v1/emergency/avl; operators can also request preemption below."
+            >
+              MANUAL + AVL (NMEA RMC)
+            </span>
           </div>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', marginTop: '2px' }}>
             First responder corridor preemption with deterministic yellow change and red clearance intervals.
@@ -93,7 +101,7 @@ export const Emergency: React.FC = () => {
 
         <button onClick={loadData} className="its-btn" disabled={loading}>
           <RefreshCw size={13} className={loading ? 'pulse-indicator' : ''} />
-          <span>Sync CAD</span>
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -113,9 +121,11 @@ export const Emergency: React.FC = () => {
                   <th>Apparatus Type</th>
                   <th>Target Node</th>
                   <th>Requested Phase</th>
+                  <th>Trigger</th>
                   <th>Safety Interlock</th>
                   <th>Preemption State</th>
-                  <th>CAD Source</th>
+                  <th>Controller</th>
+                  <th>Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -124,13 +134,24 @@ export const Emergency: React.FC = () => {
                     <td className="mono" style={{ fontWeight: 700, color: '#f87171' }}>{ev.vehicle_id}</td>
                     <td><span className="status-badge red">{ev.vehicle_type}</span></td>
                     <td className="mono" style={{ fontSize: 'var(--text-xs)', color: 'var(--its-text-cyan)' }}>{ev.intersection_id?.slice(0, 8)}</td>
-                    <td className="mono" style={{ color: '#38bdf8', fontWeight: 600 }}>Phase {ev.requested_phase}</td>
+                    <td className="mono" style={{ color: '#38bdf8', fontWeight: 600 }}>
+                      {ev.requested_phase != null ? `Phase ${ev.requested_phase}` : 'NO PHASE MAPPED'}
+                    </td>
+                    <td className="mono" style={{ fontSize: 'var(--text-2xs)' }}>
+                      {ev.trigger || 'MANUAL'}
+                      {ev.eta_sec != null && (
+                        <div style={{ color: 'var(--its-text-muted)' }}>ETA {Math.round(ev.eta_sec)}s</div>
+                      )}
+                    </td>
                     <td>
-                      <span className="status-badge green">
-                        {ev.safety_clearance_passed ? 'CLEARANCE ENFORCED' : 'INTERLOCK ACTIVE'}
+                      <span className={`status-badge ${ev.safety_clearance_passed ? 'green' : 'red'}`}>
+                        {ev.safety_clearance_passed ? 'SAFETY ENGINE PASSED' : 'INTERLOCK ACTIVE'}
                       </span>
                     </td>
                     <td><StatusBadge status={ev.status} /></td>
+                    <td className="mono" style={{ fontSize: 'var(--text-2xs)' }}>
+                      {ev.command_status || (ev.safety_clearance_passed ? 'NOT RECORDED' : 'NOT SENT')}
+                    </td>
                     <td style={{ fontSize: 'var(--text-2xs)', color: 'var(--its-text-muted)' }}>{ev.source}</td>
                   </tr>
                 ))}
@@ -163,6 +184,7 @@ export const Emergency: React.FC = () => {
                   type="text"
                   className="its-input mono"
                   value={vehicleId}
+                  placeholder="Vehicle ID from CAD, e.g. unit call sign"
                   onChange={(e) => setVehicleId(e.target.value)}
                   required
                 />
@@ -212,55 +234,7 @@ export const Emergency: React.FC = () => {
               </button>
             </div>
 
-            {lastVerdict && (
-              <div
-                role="status"
-                aria-live="polite"
-                style={{
-                  marginTop: '14px',
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1px solid ${
-                    lastVerdict.safety_clearance_passed
-                      ? 'var(--its-signal-green-border)'
-                      : 'var(--its-signal-red-border)'
-                  }`,
-                  background: lastVerdict.safety_clearance_passed
-                    ? 'var(--its-signal-green-bg)'
-                    : 'var(--its-signal-red-bg)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 700,
-                    color: 'var(--its-text-primary)',
-                    marginBottom: lastVerdict.safety_clearance_passed ? 0 : '8px',
-                  }}
-                >
-                  {lastVerdict.status === 'ERROR'
-                    ? `REQUEST FAILED: ${lastVerdict.error}`
-                    : lastVerdict.safety_clearance_passed
-                      ? `PREEMPTION GRANTED — SAFETY ENGINE PASSED (phase ${lastVerdict.requested_phase})`
-                      : 'PREEMPTION REJECTED BY SAFETY ENGINE'}
-                </div>
-
-                {!lastVerdict.safety_clearance_passed && lastVerdict.safety_report?.violations?.length > 0 && (
-                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: 'var(--text-xs)', color: 'var(--its-text-secondary)', lineHeight: 1.6 }}>
-                    {lastVerdict.safety_report.violations.map((violation: string, i: number) => (
-                      <li key={i}>{violation}</li>
-                    ))}
-                  </ul>
-                )}
-
-                {lastVerdict.safety_report?.checks_performed?.length > 0 && (
-                  <div style={{ marginTop: '8px', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--its-text-muted)' }}>
-                    CHECKS RUN: {lastVerdict.safety_report.checks_performed.join(' • ')}
-                  </div>
-                )}
-              </div>
-            )}
+            {lastVerdict && <PreemptionVerdict verdict={lastVerdict} />}
           </form>
         </div>
       )}

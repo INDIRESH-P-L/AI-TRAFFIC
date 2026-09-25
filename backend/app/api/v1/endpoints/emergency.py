@@ -1,26 +1,36 @@
 """TRAFFICINTEL AI - Emergency Vehicle Priority (EVP) Endpoints
 
-Interface with authorized CAD/AVL or roadside optical/GPS preemption detectors.
-If no emergency feed is connected, reports EMERGENCY DATA UNAVAILABLE.
+Two triggers, one path to the controller:
 
-Preemption raises a movement's priority. It does not raise its permission: every
-preemption call is validated by the Deterministic Safety Engine on the same
-terms as an operator command, and a call that would create a conflicting green,
-truncate a minimum green, or reach unreadable hardware is recorded as REJECTED.
+* `POST /emergency`      - an operator requests preemption for a named vehicle.
+* `POST /emergency/avl`  - a vehicle's position report (NMEA 0183 RMC, or decoded
+                           fields) selects the junction and phase itself.
+
+Both go through PreemptionService and SignalCommandDispatcher: the same
+Deterministic Safety Engine validation, the same command record, the same audit
+trail. Preemption raises a movement's priority, never its permission.
+
+If no emergency feed is connected, the list reports EMERGENCY DATA UNAVAILABLE.
+
+The AVL endpoint requires `signal:command`. API keys can never hold that scope
+(see governance/api_keys.py), so a CAD/AVL integration authenticates as a
+dedicated OPERATOR service account - deliberately, because an integration that
+can trigger preemption is an integration that can change signals.
 """
 
-import uuid
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_roles
-from app.models.entities import (
-    User, EmergencyEvent, Intersection, SignalController, AuditLog, utc_now
-)
-from app.safety.safety_engine import DeterministicSafetyEngine
+from app.core.security import get_current_user, require_roles, require_scope
+from app.emergency.nmea import NmeaError, parse_rmc
+from app.emergency.preemption import AvlPosition, PreemptionService
+from app.governance import scopes as scope_vocab
+from app.models.entities import AuditLog, EmergencyEvent, Intersection, User
 from app.schemas.domain import PreemptionRequest, PreemptionResponse, SafetyCheckResult
 
 router = APIRouter(prefix="/emergency", tags=["Emergency Priority"])
@@ -43,80 +53,19 @@ def submit_preemption_call(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["ADMIN", "ENGINEER", "OPERATOR"]))
 ):
-    """Records a preemption call after deterministic safety validation."""
+    """Validates a preemption call and, if it passes, sends it to the controller."""
     inter = db.query(Intersection).filter(Intersection.id == call.intersection_id).first()
     if not inter:
         raise HTTPException(status_code=404, detail="Intersection not found")
 
-    controller: Optional[SignalController] = (
-        db.query(SignalController)
-        .filter(SignalController.intersection_id == call.intersection_id)
-        .first()
+    outcome = PreemptionService.preempt(
+        db, inter, call.requested_phase, call.vehicle_id, call.vehicle_type,
+        actor_id=current_user.id, actor_name=current_user.username,
+        trigger="MANUAL", source=call.source or "OPERATOR_{}".format(current_user.username),
+        priority_level=call.priority_level, dwell_sec=call.dwell_sec,
     )
-
-    if not controller:
-        safety_result = SafetyCheckResult(
-            is_safe=False,
-            violations=[
-                f"No signal controller is configured at {inter.name}. Preemption cannot be granted "
-                f"for an intersection with no controllable hardware."
-            ],
-            checks_performed=["CONTROLLER_PRESENCE_VALIDATION"],
-            details={"intersection_id": inter.id},
-        )
-    else:
-        # Dwell defaults to the target phase's own minimum green, so the call is
-        # validated against the controller's configured envelope rather than an
-        # arbitrary number chosen here.
-        dwell_sec = call.dwell_sec
-        if dwell_sec is None:
-            target = next(
-                (p for p in controller.phases if p.phase_number == call.requested_phase),
-                None,
-            )
-            dwell_sec = target.min_green if target else 0
-
-        safety_result = DeterministicSafetyEngine.validate_command(
-            controller=controller,
-            requested_phase_num=call.requested_phase,
-            duration_sec=dwell_sec,
-            issued_at=utc_now(),
-            idempotency_key=f"evp-{call.vehicle_id}-{uuid.uuid4()}",
-            existing_command=None,
-        )
-
-    event = EmergencyEvent(
-        intersection_id=call.intersection_id,
-        vehicle_id=call.vehicle_id,
-        vehicle_type=call.vehicle_type,
-        priority_level=call.priority_level,
-        requested_phase=call.requested_phase,
-        status="ACTIVE" if safety_result.is_safe else "REJECTED",
-        safety_clearance_passed=safety_result.is_safe,
-        safety_report=safety_result.model_dump(),
-        source=call.source or f"OPERATOR_{current_user.username}",
-    )
-    db.add(event)
-    db.flush()
-
-    audit = AuditLog(
-        actor_id=current_user.id,
-        actor_username=current_user.username,
-        action="EMERGENCY_PREEMPTION_REQUESTED",
-        resource_type="EmergencyEvent",
-        resource_id=event.id,
-        result="EXECUTED" if safety_result.is_safe else "REJECTED",
-        details={
-            "vehicle_id": call.vehicle_id,
-            "type": call.vehicle_type,
-            "phase": call.requested_phase,
-            "safety_violations": safety_result.violations,
-        },
-    )
-    db.add(audit)
-    db.commit()
+    event = outcome["event"]
     db.refresh(event)
-
     return PreemptionResponse(
         event_id=event.id,
         intersection_id=event.intersection_id,
@@ -125,7 +74,72 @@ def submit_preemption_call(
         requested_phase=event.requested_phase,
         status=event.status,
         safety_clearance_passed=event.safety_clearance_passed,
-        safety_report=safety_result,
-        controller_id=controller.id if controller else None,
+        safety_report=SafetyCheckResult(**outcome["safety"]),
+        controller_id=outcome["controller"].id if outcome["controller"] else None,
         timestamp=event.timestamp,
+        trigger=event.trigger,
+        command_id=event.command_id,
+        command_status=event.command_status,
     )
+
+
+class AvlReport(BaseModel):
+    """One position report from an emergency vehicle's AVL unit.
+
+    Supply either `nmea` (a raw RMC sentence, checksum and all) or the decoded
+    fields. The raw sentence is preferred: its checksum and validity flag are
+    verified here rather than trusted from whoever decoded it.
+    """
+
+    vehicle_id: str = Field(min_length=1, max_length=64)
+    vehicle_type: str
+    source: str = Field(default="AVL", max_length=64)
+    nmea: Optional[str] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    speed_kph: Optional[float] = Field(default=None, ge=0, le=300)
+    heading_deg: Optional[float] = Field(default=None, ge=0, lt=360)
+    reported_at: Optional[datetime] = None
+
+
+@router.post("/avl")
+def receive_avl_report(
+    report: AvlReport,
+    db: Session = Depends(get_db),
+    principal=Depends(require_scope(scope_vocab.COMMAND_SIGNAL)),
+):
+    """Decides from a vehicle's own position whether, where and which phase to preempt."""
+    actor_id = getattr(getattr(principal, "user", None), "id", None)
+
+    if report.nmea:
+        try:
+            fix = parse_rmc(report.nmea)
+        except NmeaError as exc:
+            db.add(AuditLog(
+                actor_id=actor_id, actor_username=principal.identity,
+                action="AVL_REPORT_NOT_ACTED_ON", resource_type="AvlReport",
+                resource_id=report.vehicle_id, result=exc.code,
+                details={"detail": str(exc), "sentence": report.nmea},
+            ))
+            db.commit()
+            raise HTTPException(status_code=422, detail={"decision": exc.code, "detail": str(exc)})
+        position = AvlPosition(
+            vehicle_id=report.vehicle_id, vehicle_type=report.vehicle_type.upper(),
+            latitude=fix.latitude, longitude=fix.longitude, speed_kph=fix.speed_kph,
+            heading_deg=fix.heading_deg, reported_at=fix.reported_at, source=report.source,
+        )
+    else:
+        missing = [name for name in ("latitude", "longitude", "speed_kph", "reported_at")
+                   if getattr(report, name) is None]
+        if missing:
+            raise HTTPException(status_code=422, detail={
+                "decision": "INCOMPLETE_POSITION",
+                "detail": "Supply an NMEA sentence or all of: {}.".format(", ".join(missing)),
+            })
+        position = AvlPosition(
+            vehicle_id=report.vehicle_id, vehicle_type=report.vehicle_type.upper(),
+            latitude=report.latitude, longitude=report.longitude, speed_kph=report.speed_kph,
+            heading_deg=report.heading_deg, reported_at=report.reported_at, source=report.source,
+        )
+
+    return PreemptionService.handle_avl(db, position, actor_id, principal.identity)

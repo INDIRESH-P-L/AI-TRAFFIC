@@ -173,7 +173,7 @@ cd backend
 python -m pytest -v
 ```
 
-All 160 tests validate deterministic safety, data quality transitions, protocol
+All 254 tests validate deterministic safety, data quality transitions, protocol
 integration and zero-fake-data invariants. The suite runs against a throwaway
 database built through the real migrations; it never touches `trafficintel.db`.
 
@@ -256,6 +256,56 @@ Phase 4 (production readiness):
   production, never overwrites an existing account, and still needs no
   configuration locally
 
+Grounded intelligence:
+- Student-t p-values match published tables; anomaly confidence is 1 − p
+- A metric never recorded is `NOT_COMPUTABLE`; a baseline under 30 samples is
+  `INSUFFICIENT_DATA` however extreme the reading; nothing recent is
+  `INSUFFICIENT_DATA`, not normal
+- A clear spike is flagged and names the `traffic_metrics` row it came from;
+  ordinary variation is not flagged
+- The same deviation earns lower confidence from a smaller baseline
+- Bonferroni: a 1-in-300 reading is flagged alone but not among fifteen
+- A constant baseline is `NOT_COMPUTABLE`; a CUSUM alarm counts only once
+  Welch confirms it, and is only *suspected* with too few readings
+- The time-of-day baseline is centred on the window under test
+- Forecasts refuse short, gapped and stale history; a random walk is refused
+  with `NO_SKILL_OVER_PERSISTENCE` and the fitted model in the response; a
+  predictable series gets labelled points inside their intervals
+- Fusion: two corroborating sources → probable incident naming both; one
+  detector with both symptoms → uncorroborated; one symptom → partial; a
+  statistically real but small change is not a symptom; lane-less sources are
+  unattributed; a silent configured sensor is `INSUFFICIENT_DATA`
+- Evaluating writes nothing; recording creates `DETECTED` only, with evidence
+  rows that resolve to stored observations, never a duplicate open incident,
+  and requires `incident:write` (viewers and auditors get 403)
+- No intelligence endpoint creates a signal command
+
+Corridor and network scale:
+- Only the dispatcher calls an adapter to change a controller (static scan of `app/`)
+- Timing plans: barrier misalignment, ring sums, short splits, pedestrian
+  intervals, unserved phases, concurrent conflicts, unreadable or non-NTCIP
+  controllers and out-of-range offsets are each rejected by the Safety Engine
+- The emulator runs a pattern with green starting at the offset, refuses to run
+  an inconsistent one, and applies an SNMP SetRequest atomically
+- An acknowledged plan the controller does not run is not a read-back match
+- Coordination: fewer than two coordinatable controllers is `NOT_COMPUTABLE`;
+  offsets follow travel time; the critical junction sets the cycle; a cycle
+  below the pedestrian minimum is refused; design speed is never assumed
+- Applying writes and reads back each controller; a state change since the
+  proposal blocks the whole plan; a controller that stops answering leaves it
+  `PARTIALLY_APPLIED`; applying needs `signal:configure`
+- Verification confirms offsets the stringline observes and reports divergence
+- Manual preemption now reaches the controller; an unacknowledged call is
+  `FAILED` and audited `FAILED`, never `EXECUTED`
+- AVL: an approaching ambulance preempts its approach's phase; conflicts are
+  rejected with nothing sent; stale, corrupted, fixless, heading-away,
+  unauthorised and unmapped cases are refused; no double preemption within the
+  rearm window; position reports are not throttled at the command rate
+- TSP: dry runs write nothing; a late bus on green gets an extension through
+  the dispatcher; on-time, early and unknown-lateness buses do not; a bus on red
+  is not given a useless hold; stale signal state means no request; lockout;
+  the Safety Engine still decides; dispatch needs `signal:command`
+
 ### Frontend render check
 
 ```bash
@@ -263,7 +313,7 @@ cd frontend
 npm run check:render
 ```
 
-64 assertions that render the Phase 3 components to HTML and check the
+134 assertions that render the Phase 3, grounded-intelligence and corridor-scale components to HTML and check the
 truthfulness invariants survive into the markup an operator actually sees.
 `tsc -b` and `vite build` prove none of this — a component can compile and
 bundle cleanly and still render a confident `0` where the API returned `null`.
@@ -317,7 +367,8 @@ Endpoints backing the interactive console. All require a bearer token.
 
 **Console routes added in Phase 3.** `/data-trust` (trust score and change
 verification), `/stringline` (corridor time-space diagram), `/handover` (shift
-handover). The junction drawer now leads with the junction's trust banner.
+handover). Grounded intelligence adds `/intelligence` (anomalies, forecast,
+incident fusion). The junction drawer now leads with the junction's trust banner.
 
 **Junction quality roll-up.** A junction's marker colour comes from the *worst*
 state among its configured sources, never the freshest or an average. A live
@@ -393,9 +444,240 @@ what is missing and why**, never just a dash or a blank panel.
 | **Progression speed** | n/a | `OFFSET_BELOW_MEASUREMENT_RESOLUTION` / `IMPLIED_SPEED_IMPLAUSIBLE`, stated in words, with no line drawn on the diagram | n/a |
 | **Shift handover** (`/handover`) | Skeleton rows in the list | No handovers → explains what one captures. No pending actions → "nothing outstanding was detected". No blind spots → "every junction reported on every channel" | Named failure banner; the record is never partially saved |
 | **Handover snapshot** | n/a — fixed at creation | Absent → `NO SNAPSHOT RECORDED`. Null trust mean → `--`, never `0.0` | Read-only; cannot fail independently of the record |
+| **Anomalies** (`/intelligence`) | Skeleton rows; no status word, no number | Per metric: `NOT COMPUTABLE` / `INSUFFICIENT DATA` with the reason code and explanation. Every unevaluated metric is listed under **NOT EVALUATED** with "no flag is not evidence of normal conditions". Confidence is capped at `>99.99%`, never rounded to 100% | `ANALYSIS UNAVAILABLE` + Retry; the previous result is cleared |
+| **Forecast** (`/intelligence`, `/predictions`) | Skeleton while fitting and backtesting | `NOT COMPUTABLE` draws no chart. A refusal draws observed bins only, states that no forecast line is drawn, and — when a model was fitted — shows it under "A MODEL WAS FITTED AND MEASURED" with its MAE beside persistence's | Named failure; no stale forecast left on screen |
+| **Forecast line** | n/a | Observed bins solid and labelled `MEASURED`; forecast dashed inside its 95% band, after a divider, stamped `SCENARIO / HYPOTHETICAL` | n/a |
+| **Incident fusion** (`/intelligence`) | Skeleton rows | No approaches → "NO SEGMENTS CONFIGURED". Single-sensor segment → `FEWER_THAN_TWO_INDEPENDENT_SOURCES`. Lane-less sources listed under **UNATTRIBUTED SOURCES** | Record failure is shown inline; a 403 says the role lacks `incident:write`, and nothing was filed |
+| **Coordination plan** (`/coordination`) | Skeleton while computing and validating | No corridors → `NO CORRIDORS CONFIGURED`. An uncoordinatable corridor renders `NOT COMPUTABLE` with every junction's reason. A refused proposal names the refusal (e.g. `CYCLE_BELOW_MINIMUM_FEASIBLE`) | Named failure. A 403 on apply names `signal:configure` and states that nothing was sent |
+| **Planned diagram** | n/a | Drawn in dashed outline and labelled `PLANNED ... (NOT OBSERVED)`. It is never presented as what the controllers are doing | n/a |
+| **Plan verification** | n/a | `INSUFFICIENT DATA` until the stringline has seen enough cycles. This is stated as "not a failure" | Named failure |
+| **Transit priority** (`/transit`) | Skeleton while fetching and evaluating | No feed → `TRANSIT FEED NOT CONFIGURED`, and no bus is simulated. Every bus the feed contains is listed with its decision. Unknown lateness renders `UNKNOWN`, never `0s` | Named failure. A 403 on dispatch names `signal:command` |
+| **Preemption verdict** (`/emergency`) | n/a | `ACTIVE` only when the controller acknowledged. `FAILED` says "no preemption is in effect". `REJECTED` says "nothing was sent" | Request error is shown inline |
 
 All of these are asserted by `npm run check:render` rather than only described
 here.
+
+---
+
+## 7b. Grounded Intelligence
+
+Three capabilities, each computed only from telemetry the platform stored, and
+each with a specific way of producing a confident-looking number from nothing
+that it refuses to do. Console route: `/intelligence`; the forecast also
+renders on `/predictions`.
+
+No schema change: anomalies and forecasts are computed on read, and fusion
+detections use the existing `incidents` and `incident_evidence` tables. No
+migration was added.
+
+| Endpoint | Purpose | Refusal / empty states |
+|---|---|---|
+| `GET /api/v1/intelligence/anomalies/{id}` | Point and sustained-shift anomalies in stored throughput, occupancy and speed | Per metric: `NOT_COMPUTABLE` (`NO_STORED_VALUES_FOR_METRIC`, `BASELINE_HAS_ZERO_VARIANCE`) · `INSUFFICIENT_DATA` (`NO_SAMPLES_IN_TEST_WINDOW`, `BASELINE_TOO_SMALL`) |
+| `GET /api/v1/predictions/forecast/{id}` | ARIMA(p,d,0) short-horizon forecast with 95% intervals | `NOT_COMPUTABLE` (`NO_STORED_VALUES_FOR_METRIC`) · `INSUFFICIENT_DATA_FOR_RELIABLE_FORECAST` with `INSUFFICIENT_HISTORY`, `GAPS_BREAK_HISTORY`, `LATEST_DATA_TOO_OLD`, `NO_SKILL_OVER_PERSISTENCE`, `SERIES_UNCHANGED_IN_BACKTEST`, `NO_MODEL_COULD_BE_FITTED`, `NO_COMPLETE_BIN` |
+| `GET /api/v1/intelligence/incident-fusion/{id}` | Corroborated occupancy-spike + speed-drop per approach. Writes nothing | Per segment: `NOT_COMPUTABLE` (`FEWER_THAN_TWO_INDEPENDENT_SOURCES`) · `INSUFFICIENT_DATA` (`CONFIGURED_SOURCES_SILENT`, `TOO_FEW_SAMPLES_PER_SOURCE`) · `UNCORROBORATED_SINGLE_SOURCE` · `PARTIAL_SYMPTOMS` · `NO_INCIDENT_INDICATED` |
+| `POST /api/v1/intelligence/incident-fusion/{id}/record` | Files each probable incident as `DETECTED` with the corroborating observations attached as evidence. Requires `incident:write` | Skips a segment that already has an open fusion incident (`OPEN_INCIDENT_ALREADY_EXISTS`) |
+
+All three accept `as_of` to evaluate a past instant.
+
+### Anomaly detection
+
+- **Point anomalies** use a prediction-interval t-test:
+  `T = (x - x̄) / (s·√(1 + 1/n))`, Student's t with n−1 degrees of freedom,
+  and report confidence as `1 − p`. That is what makes confidence *derived
+  from sample size*: the same deviation against a smaller baseline has fewer
+  degrees of freedom and a wider interval, so it earns less confidence. The
+  p-value is exact (regularized incomplete beta), not a table lookup.
+- **Family-wise control.** Every reading in the test window is a separate
+  test, so alpha (0.01) is Bonferroni-divided across them. Without it, a quiet
+  fifteen-minute window would raise a false flag on roughly one junction in
+  seven every quarter hour.
+- **Sustained shifts** use a two-sided CUSUM (k=0.5, h=5). An alarm is only a
+  suspicion until Welch's test confirms the post-onset readings differ from the
+  baseline; with too few post-onset readings it is
+  `SUSPECTED_TOO_FEW_SAMPLES_TO_CONFIRM`, never an anomaly.
+- **Baseline.** Same time of day (±30 min) on previous days when at least 30
+  such readings exist; otherwise the preceding two hours, with a caveat that
+  this ignores the daily pattern. Fewer than 30 either way →
+  `INSUFFICIENT_DATA`, however extreme the latest reading.
+- Every flag names the `traffic_metrics` row it came from.
+
+### Forecasting
+
+- **The model, stated exactly:** ARIMA(p,d,0) — autoregression on the
+  d-times-differenced series, fitted by conditional least squares, with **no
+  moving-average terms**. The platform carries no statsmodels; a subset of
+  ARIMA with an auditable solver is named as that subset everywhere it reports.
+- **Order selection by measured error.** Six candidates (p ∈ 1–3, d ∈ 0–1)
+  are evaluated by rolling-origin backtest — refit at each of 12 origins on the
+  data before it, no look-ahead — and the lowest MAE wins.
+- **The refusal has a model behind it.** The winner is compared with naive
+  persistence ("next bin equals the last"). Unless it reduces MAE by at least
+  10%, the forecast is refused with `NO_SKILL_OVER_PERSISTENCE` — and the
+  response carries the fitted model and its measured error. Previously the
+  refusal fired on a row count and "enough rows" led to
+  `NO_FORECAST_MODEL_REGISTERED`; that status no longer exists.
+- **Gaps are never interpolated.** The model trains on the longest gap-free
+  run ending at the latest complete bin. The in-progress bin is excluded.
+- Every point is stamped `SCENARIO / HYPOTHETICAL`, carries a 95% interval,
+  and is clipped to physical bounds (flagged when clipped). The interval's
+  **measured** backtest coverage is reported beside it.
+
+### Fusion incident detection
+
+- **Segment** = an Approach — the only segment unit the schema has.
+  Observations without a lane are reported as unattributed, never guessed onto
+  a segment.
+- **Independent source** = a distinct reporting identity. Two identities fed
+  by one physical device would be counted twice; the response says so.
+- Each source is compared with **its own** baseline (Welch, 95%), and a
+  symptom must also clear a practical threshold (occupancy +15 points, speed
+  −30%): statistically real but operationally trivial changes do not count.
+- **Probable incident** requires both symptoms and at least two independent
+  sources showing them. One detector showing both is
+  `UNCORROBORATED_SINGLE_SOURCE` — the phantom-incident case.
+- The response names the corroborating sources *and* the sources that were
+  evaluated and disagreed. `corroboration_ratio` is agreement between sensors,
+  not a probability.
+- **Recording never verifies.** Incidents enter the lifecycle as `DETECTED`
+  with a timeline entry marked `requires_human_verification`.
+
+**Safety invariant.** None of these endpoints can create a signal command; a
+test calls all four and asserts the `signal_commands` table is unchanged.
+
+---
+
+## 7c. Corridor and Network Scale
+
+Three capabilities that change what a signal controller does: green-wave
+coordination, transit signal priority, and emergency preemption from a vehicle
+position feed. Console routes: `/coordination`, `/transit`, `/emergency`.
+
+### The single path to hardware
+
+Every instruction that changes a controller — operator phase holds, manual and
+AVL preemption, transit priority, and coordination timing plans — goes through
+`app/signals/dispatch.py` (`SignalCommandDispatcher`). The sequence is fixed:
+
+1. Deterministic Safety Engine validation.
+2. A `SignalCommand` row, `REJECTED` or `PENDING`, written either way.
+3. If rejected: an audit entry, and nothing is sent.
+4. Otherwise the adapter is asked, and its acknowledgement recorded.
+5. The controller is re-read, and what it *actually* displays is recorded.
+6. An audit entry whose result is the real outcome.
+
+A test scans `app/` and fails if anything other than the dispatcher calls an
+adapter's `send_command` or `write_timing_plan`.
+
+**Fixed while building this:** the manual preemption endpoint validated calls
+and then recorded them `ACTIVE`, audited `EXECUTED`, **without sending anything
+to the controller**. Preemption now dispatches. Its status is the real outcome:
+`ACTIVE` (the controller acknowledged), `REJECTED` (nothing was sent) or
+`FAILED` (validated, but the controller did not acknowledge).
+
+### Endpoints
+
+| Endpoint | Purpose | Refusal / empty states |
+|---|---|---|
+| `POST /api/v1/coordination/corridors/{id}/propose` | Green-wave plan: common cycle, Webster splits, travel-time offsets, bandwidth in both directions, Safety Engine verdict per controller. Sends nothing. Needs `optimizer:run` | `NOT_COMPUTABLE` (`FEWER_THAN_TWO_COORDINATABLE_CONTROLLERS`, `NO_DESIGN_SPEED`) · `REFUSED` (`CYCLE_BELOW_MINIMUM_FEASIBLE`, `NO_LANE_TO_PHASE_ASSIGNMENTS`, `TRUST_SCORE_BELOW_AI_GATE`, `DEMAND_AT_OR_ABOVE_CAPACITY`, `NO_DEMAND_FOR_BARRIER_GROUP`) · stored as `REJECTED_BY_SAFETY` |
+| `POST /api/v1/coordination/plans/{id}/apply` | Re-validates every controller, then writes each part through the dispatcher and reads it back. Needs `signal:configure` | `REJECTED_AT_APPLY` (nothing sent) · `PARTIALLY_APPLIED` (each outcome listed) · `APPLY_FAILED` · 409 if not `PROPOSED` |
+| `GET /api/v1/coordination/plans/{id}/verify` | Planned offsets compared with the offsets the stringline **observes** | `OBSERVED_AS_PLANNED` · `DIVERGES_FROM_PLAN` · `INSUFFICIENT_DATA` (not enough cycles yet) · `NOT_APPLICABLE` |
+| `POST /api/v1/transit/tsp/evaluate` | Fetches the configured GTFS-Realtime feeds and evaluates conditional TSP. Dry run by default | `TRANSIT_FEED_NOT_CONFIGURED` · `FEED_UNAVAILABLE` · `FEED_UNDECODABLE` |
+| `POST /api/v1/transit/tsp/evaluate-feed` | Same, for feed bytes pushed by a gateway (base64 protobuf) | 422 on an undecodable feed |
+| `POST /api/v1/emergency/avl` | An emergency vehicle's position (NMEA RMC, or decoded fields) selects the junction and phase, and preempts through the dispatcher. Needs `signal:command` | 422 `CHECKSUM_MISMATCH` / `NO_GPS_FIX` · `POSITION_TOO_OLD` · `VEHICLE_NOT_MOVING` · `NO_JUNCTION_APPROACHED` · `NO_PHASE_SERVES_APPROACH` · `ALREADY_PREEMPTED` · `UNAUTHORIZED_VEHICLE_TYPE` |
+
+### Arterial coordination
+
+- **Only real, readable controllers are coordinated.** A junction qualifies only
+  if its controller speaks NTCIP 1202 (the one protocol with a timing-plan
+  channel) and is `CONNECTED`. Every other junction is listed with its reason.
+- **The Safety Engine gained `validate_timing_plan`.** It checks controller
+  readability and capability, cycle bounds and offset range. It checks that
+  every configured phase has a split, that splits cover minimum green plus
+  clearance and pedestrian walk plus clearance, and that no green exceeds
+  maximum green. It checks that **each ring sums to the cycle**, that **both
+  rings cross every barrier together**, and that no pair of phases run
+  concurrently is configured as conflicting.
+- **The common cycle is never below what every junction can physically run.**
+  Webster's optimum ignores minimum greens and pedestrian intervals. On the live
+  demo corridor it proposed a 40 s cycle, against a 56 s pedestrian minimum, and
+  the resulting plan gave the main street 6 s of green. The Safety Engine
+  rejected it, so nothing unsafe was applied. The planner now uses the larger of
+  the Webster optimum and the minimum feasible cycle, and refuses an
+  operator-entered cycle below that floor.
+- **Design speed is never measured.** It is either operator-entered or the
+  configured speed limit, and it is labelled as such.
+- **Bandwidth is reported in both directions.** Optimising one direction usually
+  costs the other.
+- **Applying is all-or-nothing at the pre-flight check.** Every controller is
+  re-validated at apply time. If any would now refuse, nothing is sent to any of
+  them: a half-applied green wave moves junctions off their old timing without
+  the progression that justified it. After the pre-flight, each write is **read
+  back**. A controller whose read-back differs from the plan is recorded as
+  `FAILED`, even though it acknowledged the write.
+- **NTCIP coordination objects.** Plans are written as one atomic SNMPv1
+  SetRequest to `patternTable`/`splitTable` and activated through
+  `systemPatternControl`. **Check these OIDs against your controller's MIB
+  before field use.** They were written from knowledge of NTCIP 1202 v02's
+  coordination section without the standard document to hand, and they are
+  exercised only against this project's emulator.
+- **Offsets assume the controllers share a time reference** (GPS or NTP). The
+  platform cannot check controller clock sync, so `verify` compares the planned
+  offsets with what the stringline observes.
+
+**Verified live.** On the three-junction Avinashi Road demo corridor, a 60 s
+plan with offsets 0 / 32 / 4 s was applied to three NTCIP emulators through the
+real API. After several cycles, `verify` reported `OBSERVED_AS_PLANNED`. The
+stringline measured offsets of **31.6 s and 32.6 s** against a planned 32 s,
+within the 2 s poll resolution.
+
+### Conditional transit signal priority
+
+A bus gets a green extension only when **all** of the following hold:
+
+- its position is fresh and has a heading;
+- it is approaching a junction;
+- it is **at least 60 s late**, according to the TripUpdates feed;
+- no priority was granted at that junction in the last 180 s;
+- a lane on its approach is mapped to a phase;
+- that phase is **currently green**, according to polled state no older than 10 s;
+- the Safety Engine passes it.
+
+**Unknown lateness is not treated as late.** Every bus evaluated near a
+junction is recorded with its decision and reason, whether or not it was
+granted priority.
+
+- **Only green extension is requested.** Early green needs NTCIP force-off,
+  which the adapter does not implement. A bus arriving on red is recorded as
+  `EARLY_GREEN_NOT_SUPPORTED`, rather than being sent a hold that would do
+  nothing.
+- **GTFS-Realtime decoding is dependency-free** (`app/providers/gtfs_rt.py`).
+  It is a protobuf wire-format decoder driven by the published field numbers.
+  Unknown fields are skipped, and malformed messages are rejected.
+- **There is no demo feed.** A feed that invented buses would put fabricated
+  vehicles and lateness into a decision that changes signal timing. Point
+  `GTFS_RT_VEHICLE_POSITIONS_URL` / `GTFS_RT_TRIP_UPDATES_URL` at a real agency
+  feed, or push real feed bytes to `/transit/tsp/evaluate-feed`.
+
+### Emergency preemption from AVL
+
+- **NMEA RMC is parsed strictly.** The checksum must match, and the receiver
+  status must be `A`. A void fix (`V`) is refused, because its coordinates could
+  preempt the wrong junction.
+- **Targeting is conservative.** A fix older than 10 s is refused. The vehicle
+  must be moving at least 5 km/h. The junction must be within 600 m, within 45°
+  of the vehicle's heading, and reachable in 40 s or less. The phase comes from
+  the lane mapping on the vehicle's approach, never from a guess.
+- **The hold covers the vehicle's arrival**: the ETA plus 5 s, bounded by the
+  phase's own minimum and maximum green. The same vehicle cannot preempt the
+  same junction again within 90 s.
+- **AVL position reports have their own rate limit** (600/min per account). The
+  signal-command limit (12/min) would cut off an AVL unit reporting at 1 Hz
+  after twelve seconds, and the report that should trigger preemption would be
+  refused. The commands those reports cause are bounded by the rearm window.
+- **The AVL endpoint requires `signal:command`, which API keys can never hold.**
+  A CAD/AVL integration therefore authenticates as a dedicated OPERATOR service
+  account. That is deliberate: an integration that can trigger preemption can
+  change signals.
 
 ---
 
@@ -537,6 +819,20 @@ A successful test returns `"connection_status": "CONNECTED"` **and**
     did report. Edit
     the notes, sign off, then try to edit again: 409, with the reason that the
     next shift may already have acted on it.
+
+11. **Apply a green wave and watch it be measured.** With the three emulators
+    running (§8.2), open `/coordination`, choose the corridor, and enter volumes
+    (for example 900 veh/h main street on 2 lanes, 350 cross street) and a
+    design speed of 50 km/h. Propose, then apply. Every controller acknowledges
+    and reads back the plan. Wait four or five cycles, then press **Verify
+    against the stringline**. The observed offsets match the plan to within the
+    poll resolution. Before the plan was applied, the same stringline reported
+    `OFFSET_BELOW_MEASUREMENT_RESOLUTION` for these free-running controllers.
+
+12. **Watch preemption tell the truth about the controller.** Stop one
+    emulator and request manual preemption at its junction. The call passes the
+    Safety Engine, and the verdict reads *"the controller did not acknowledge —
+    no preemption is in effect"*. It is audited `FAILED`.
 
 ### 8.5 Connecting a real camera (RTSP)
 

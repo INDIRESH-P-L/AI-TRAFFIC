@@ -1,0 +1,51 @@
+{
+ "status": "INSUFFICIENT_DATA",
+ "detail": "No metric had enough data to test.",
+ "intersection_id": "886b3a40-a2ba-4cf6-8ed2-7a13782eaf06",
+ "intersection_name": "Fixture AN-SMALL",
+ "as_of": "2026-03-10T14:00:00",
+ "test_window_start": "2026-03-10T13:45:00",
+ "history_start": "2026-03-03T14:00:00",
+ "rows_read": 11,
+ "rows_excluded_as_not_measurements": 0,
+ "metrics_evaluated": [],
+ "metrics_not_evaluated": [
+  "Throughput (BASELINE_TOO_SMALL)",
+  "Occupancy (NO_STORED_VALUES_FOR_METRIC)",
+  "Average speed (NO_STORED_VALUES_FOR_METRIC)"
+ ],
+ "metrics": [
+  {
+   "metric": "flow_rate_vph",
+   "label": "Throughput",
+   "unit": "veh/h",
+   "status": "INSUFFICIENT_DATA",
+   "reason": "BASELINE_TOO_SMALL",
+   "explanation": "At least 30 baseline samples are required and neither baseline had enough (same time of day on previous days: 0; preceding 2 h: 10). No anomaly is reported rather than one measured against too little history.",
+   "minimum_baseline_samples": 30,
+   "baseline_candidates": {
+    "same_time_of_day": 0,
+    "recent_window": 10
+   }
+  },
+  {
+   "metric": "occupancy_pct",
+   "label": "Occupancy",
+   "unit": "%",
+   "status": "NOT_COMPUTABLE",
+   "reason": "NO_STORED_VALUES_FOR_METRIC",
+   "explanation": "No occupancy value has been stored for this junction in the history window. There is no series to test; connect a source that measures it. Waiting will not help."
+  },
+  {
+   "metric": "avg_speed_kph",
+   "label": "Average speed",
+   "unit": "km/h",
+   "status": "NOT_COMPUTABLE",
+   "reason": "NO_STORED_VALUES_FOR_METRIC",
+   "explanation": "No average speed value has been stored for this junction in the history window. There is no series to test; connect a source that measures it. Waiting will not help."
+  }
+ ],
+ "method": "Prediction-interval t-test per reading (Bonferroni across the test window) plus a two-sided CUSUM confirmed by Welch's test. Source: stored traffic_metrics rows only.",
+ "method_version": "anomaly-v1",
+ "data_kind": "MEASURED"
+}
