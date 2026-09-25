@@ -129,7 +129,35 @@
 ```bash
 cd backend
 python -m pip install -r requirements.txt
+```
 
+**Provision a database.** The default (`DATABASE_URL` unset) is SQLite — a
+zero-friction file with no setup, good for a first run. Skip straight to
+`db_init` below if that is what you want.
+
+For PostgreSQL instead, create the database and enable PostGIS *before*
+running migrations, since the schema depends on the extension:
+
+```bash
+# Natively installed Postgres:
+createdb trafficintel
+psql trafficintel -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+```
+
+```bash
+# Managed provider (Supabase, Neon, Railway, RDS, ...): create a database
+# through the provider's console or CLI, then run the same statement against
+# it — most providers expose a SQL console, or accept `psql "<connection
+# string>" -c "CREATE EXTENSION IF NOT EXISTS postgis;"`.
+```
+
+Then point the app at it:
+
+```bash
+export DATABASE_URL="postgresql+psycopg://user:password@localhost:5432/trafficintel"
+```
+
+```bash
 # Bootstrap clean database (applies Alembic migrations & creates the initial administrator)
 python -m app.db_init
 
@@ -852,6 +880,11 @@ because a deployment guide nobody has followed is a guess.
 
 ### 9.1 Bring the stack up
 
+The database is **not** one of these containers. Provision it first — a
+natively installed PostgreSQL or a managed provider (Supabase, Neon, Railway,
+RDS, ...) — with PostGIS enabled (`CREATE EXTENSION IF NOT EXISTS postgis;`),
+exactly as in §3's Quick Start. Then:
+
 ```bash
 cp .env.example .env          # then edit: see below
 docker compose up -d
@@ -860,9 +893,8 @@ docker compose up -d
 - **Console** — `http://localhost:8080`
 - **API** — `http://localhost:8080/api/v1` (proxied through the console)
 
-Four services: `db` (PostgreSQL 16 + PostGIS 3.4), `migrate` (runs to
-completion and exits), `backend`, `console` (nginx serving the bundle and
-proxying the API).
+Three services: `migrate` (waits for the database, applies migrations, exits),
+`backend`, `console` (nginx serving the bundle and proxying the API).
 
 The API port is **not** published to the host. Everything reaches it through
 nginx, which gives one origin, no CORS, and one place to terminate TLS.
@@ -871,10 +903,26 @@ Required in `.env`:
 
 | Variable | Why |
 |---|---|
-| `POSTGRES_PASSWORD` | Compose refuses to start without it rather than inventing a default |
+| `DATABASE_URL` | Compose refuses to start `migrate` or `backend` without it rather than inventing a default. See §3 for the two connection-string shapes |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_hex(32))"` — the app refuses to boot in production on the published placeholder |
 | `ENVIRONMENT` | `production` enables the guards in §9.4 |
 | `BACKEND_CORS_ORIGINS` | **Leave empty** for this topology — see §9.4 |
+
+**The most common mistake here:** if your database runs on this same machine,
+`localhost` inside `DATABASE_URL` means *the container*, not your host —
+containers get their own network namespace, so `localhost:5432` from inside
+`backend` or `migrate` resolves to nothing. Use an address the containers can
+actually reach:
+
+- **Docker Desktop (Windows/Mac):** `host.docker.internal` reaches the host
+  from inside a container, e.g.
+  `postgresql+psycopg://user:pass@host.docker.internal:5432/trafficintel`.
+- **Linux:** `host.docker.internal` is not built in; either add
+  `extra_hosts: ["host.docker.internal:host-gateway"]` to the `migrate` and
+  `backend` services, or use the host's real LAN/docker0 address.
+- **Managed provider:** use the hostname the provider gives you — it is
+  already reachable from anywhere with network access, so this mistake does
+  not apply.
 
 ### 9.1a Create the first operator
 
@@ -902,7 +950,7 @@ a live system.
 
 ### 9.2 Migrations are a separate service, deliberately
 
-`migrate` runs `alembic upgrade head` and exits; `backend` waits for it via
+`migrate` applies migrations and exits; `backend` waits for it via
 `service_completed_successfully`.
 
 Migrations are **not** run from the API's entrypoint. If they were, two
@@ -910,6 +958,15 @@ replicas starting together would race each other through the same migration,
 and the loser's failure would surface as a crash-looping container rather than
 as a failed deploy. It also means a migration that fails stops the release
 instead of taking the API down with it.
+
+Since the database is external, there is no compose healthcheck for `migrate`
+to wait on before it starts. Instead `python -m tools.migrate_with_retry`
+(`backend/tools/migrate_with_retry.py`) retries the connection itself — 8
+attempts, exponential backoff from 2s up to 20s — before applying migrations,
+so a transient network hiccup to a managed database does not crash-loop the
+container. After that many attempts it fails with the connection error, which
+is treated as a configuration problem (wrong host, firewall, credentials), not
+one worth retrying forever.
 
 Both dialects are exercised by CI:
 
@@ -1022,15 +1079,23 @@ accepted forms.
 ### 9.7 Backup and restore
 
 The database is the entire operational record — telemetry, the hash-chained
-audit ledger, signed-off handovers. The container volume is not a backup.
+audit ledger, signed-off handovers. There is no `db` container to `exec` into
+— the database is external — so back it up the ordinary way, directly against
+`DATABASE_URL`:
 
 ```bash
 # Backup
-docker compose exec -T db pg_dump -U trafficintel -Fc trafficintel > backup.dump
+pg_dump -Fc "$DATABASE_URL" > backup.dump
 
 # Restore into an empty database
-docker compose exec -T db pg_restore -U trafficintel -d trafficintel --clean backup.dump
+pg_restore -d "$DATABASE_URL" --clean backup.dump
 ```
+
+If `DATABASE_URL` uses the `postgresql+psycopg://` scheme (as this project's
+`.env` does), `pg_dump`/`pg_restore` want the plain `postgresql://` form —
+strip the `+psycopg` driver suffix before passing it. A managed provider's own
+backup and point-in-time-recovery tooling is usually a better default than
+this manual path; use it if available, and keep this as the portable fallback.
 
 After restoring, verify the audit chain before trusting the record:
 

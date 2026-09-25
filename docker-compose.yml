@@ -7,53 +7,40 @@
 # The API port is NOT published to the host. Everything reaches it through the
 # console's nginx, so there is one origin, no CORS, and one place to put TLS.
 # Publish 8000 yourself if you need to hit the API directly during development.
+#
+# The database is NOT part of this stack. It is external - a natively
+# installed PostgreSQL, or a managed provider (Supabase, Neon, Railway, RDS,
+# ...) - reached over the network via a single DATABASE_URL. The app's
+# dual-dialect SQLAlchemy engine and Alembic migrations do not care which; see
+# README section 9 for the exact connection-string shape for each case, and
+# the "reachable address" warning if the database runs on this same host.
 
 name: trafficintel
 
 services:
   # ---------------------------------------------------------------------
-  # PostgreSQL + PostGIS
-  # ---------------------------------------------------------------------
-  db:
-    image: postgis/postgis:16-3.4
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-trafficintel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-trafficintel}
-      # Fail fast on a corrupt page rather than serving quietly wrong rows.
-      POSTGRES_INITDB_ARGS: "--data-checksums"
-    volumes:
-      - trafficintel-db:/var/lib/postgresql/data
-    healthcheck:
-      # The database name is passed explicitly: pg_isready otherwise probes a
-      # database named after the user and reports ready before ours exists.
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trafficintel} -d ${POSTGRES_DB:-trafficintel}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------
-  # Schema migration - runs to completion, then exits
+  # Schema migration - waits for the external database, then runs to
+  # completion and exits
   # ---------------------------------------------------------------------
   #
   # Deliberately a separate one-shot service rather than a line in the API's
   # entrypoint. If the API migrated on boot, two replicas starting together
   # would race each other through the same migration, and the loser's failure
   # would surface as a crash-looping pod rather than as a failed deploy.
+  #
+  # There is no compose healthcheck to wait on any more - the database is not
+  # a compose service - so migrate_with_retry.py retries the connection itself
+  # with a short backoff before applying migrations, rather than crash-looping
+  # the whole container on the first transient network hiccup.
   migrate:
     build:
       context: ./backend
-    command: ["python", "-m", "alembic", "upgrade", "head"]
+    command: ["python", "-m", "tools.migrate_with_retry"]
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trafficintel}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trafficintel}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env - see .env.example for the local and managed-provider shapes}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-}
-    depends_on:
-      db:
-        condition: service_healthy
     restart: "no"
 
   # ---------------------------------------------------------------------
@@ -63,7 +50,7 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trafficintel}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-trafficintel}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env - see .env.example for the local and managed-provider shapes}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       # Empty by design. The console and the API are served from a single
@@ -80,8 +67,6 @@ services:
       # scaling this service beyond one replica.
       CONTROLLER_POLL_ENABLED: ${CONTROLLER_POLL_ENABLED:-true}
     depends_on:
-      db:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -98,6 +83,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  trafficintel-db:
